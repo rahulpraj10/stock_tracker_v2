@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Data Viewer</title>
+    <!-- Clarity Design System -->
+    <link rel="stylesheet" href="https://unpkg.com/@clr/ui/clr-ui.min.css" />
+    <link rel="stylesheet" href="https://unpkg.com/@clr/icons/clr-icons.min.css" />
+    <script src="https://unpkg.com/@clr/icons/clr-icons.min.js"></script>
+    <style>
+        .main-container {
+            padding: 24px;
+        }
+        .filter-section {
+            background: #fafafa;
+            padding: 24px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            margin-bottom: 24px;
+        }
+        .pagination {
+            margin-top: 24px;
+            display: flex;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <header class="header header-6">
+            <div class="branding">
+                <a href="/" class="nav-link">
+                    <cds-icon shape="bar-chart" class="is-solid"></cds-icon>
+                    <span class="title">Stock Data Viewer</span>
+                </a>
+            </div>
+        </header>
+
+        <div class="content-container">
+            <div class="content-area">
+                <h2>Stock Data Preview</h2>
+                
+                <div class="filter-section">
+                    <form action="/" method="GET" class="clr-form clr-form-compact clr-form-horizontal">
+                        <div class="clr-form-control">
+                            <label for="sc_code" class="clr-control-label">SC CODE</label>
+                            <div class="clr-control-container">
+                                <div class="clr-input-wrapper">
+                                    <input type="text" id="sc_code" name="sc_code" placeholder="Enter SC Code..." value="{{ sc_code }}" class="clr-input">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="clr-form-control">
+                            <label for="sc_name" class="clr-control-label">SC NAME</label>
+                            <div class="clr-control-container">
+                                <div class="clr-input-wrapper">
+                                    <input type="text" id="sc_name" name="sc_name" placeholder="Enter SC Name..." value="{{ sc_name }}" class="clr-input">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="clr-form-control">
+                            <div class="clr-control-container">
+                                <button type="submit" class="btn btn-primary">Filter</button>
+                                <a href="/" class="btn btn-link">Clear</a>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="datagrid-container">
+                    {% if data %}
+                    <table class="table table-compact table-noborder">
+                        <thead>
+                            <tr>
+                                {% for col in columns %}
+                                <th class="left">{{ col }}</th>
+                                {% endfor %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in data %}
+                            <tr>
+                                {% for col in columns %}
+                                <td class="left">{{ row[col] }}</td>
+                                {% endfor %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <div class="alert alert-info" role="alert">
+                        <div class="alert-items">
+                            <div class="alert-item static">
+                                <div class="alert-icon-wrapper">
+                                    <cds-icon class="alert-icon" shape="info-circle"></cds-icon>
+                                </div>
+                                <span class="alert-text">No data found matching your criteria or data source is empty.</span>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
