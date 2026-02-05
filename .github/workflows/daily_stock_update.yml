@@ -29,7 +29,7 @@ jobs:
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
     - name: Run daily update script
-      run: python daily_update.py
+      run: python daily_update.py --date 2026-02-02
 
     - name: Commit and push changes
       run: |
