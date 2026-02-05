@@ -208,29 +208,54 @@ def merge_and_accumulate(bse_file_name, samco_files, current_date):
     filtered_df['Date'] = current_date.strftime("%Y-%m-%d")
 
     # Accumulate
+    # We use CSV for robust storage and easier debugging (text-based diffs in git)
+    csv_path = os.path.join(STOCK_DATA_DIR, "merged_stock_data.csv")
     pkl_path = os.path.join(STOCK_DATA_DIR, PKL_FILENAME)
-    if os.path.exists(pkl_path):
-        print(f"Loading existing PKL: {pkl_path}")
+    
+    final_df = None
+    
+    # Try loading from CSV first (Primary persistence)
+    if os.path.exists(csv_path):
+        print(f"Loading existing CSV: {csv_path}")
+        try:
+            existing_df = pd.read_csv(csv_path)
+            # Ensure 'SCRIP CODE' is numeric in existing data too
+            if 'SCRIP CODE' in existing_df.columns:
+                existing_df['SCRIP CODE'] = pd.to_numeric(existing_df['SCRIP CODE'], errors='coerce')
+        except Exception as e:
+            print(f"Error reading CSV, trying PKL fallback: {e}")
+            existing_df = None
+    
+    # Fallback to PKL if CSV didn't work (Migration or legacy)
+    elif os.path.exists(pkl_path):
+        print(f"Loading existing PKL (Legacy): {pkl_path}")
         try:
             existing_df = pd.read_pickle(pkl_path)
-            # Concat
-            final_df = pd.concat([existing_df, filtered_df], ignore_index=True)
-            # Remove duplicates just in case run multiple times same day
-            # Assuming 'SCRIP CODE' and 'Date' define uniqueness
-            final_df.drop_duplicates(subset=['SCRIP CODE', 'Date'], keep='last', inplace=True)
         except Exception as e:
-            print(f"Error reading existing PKL, starting fresh: {e}")
-            final_df = filtered_df
+            print(f"Error reading existing PKL: {e}")
+            existing_df = None
     else:
-        print("Creating new PKL file.")
+        existing_df = None
+
+    if existing_df is not None:
+        print("Appending new data to existing history...")
+        final_df = pd.concat([existing_df, filtered_df], ignore_index=True)
+        # Remove duplicates
+        final_df.drop_duplicates(subset=['SCRIP CODE', 'Date'], keep='last', inplace=True)
+    else:
+        print("Starting fresh accumulation file.")
         final_df = filtered_df
 
-    print(f"Saving accumulated data to {pkl_path}")
+    # Save to BOTH CSV and PKL
+    print(f"Saving accumulated data to CSV: {csv_path}")
+    final_df.to_csv(csv_path, index=False)
+    
+    print(f"Saving accumulated data to PKL: {pkl_path}")
     final_df.to_pickle(pkl_path)
     
-    print("\n--- PKL File Preview (First 5 Rows) ---")
+    print("\n--- Accumulation File Preview (First 5 Rows) ---")
     print(final_df.head().to_string())
-    print("\n--- PKL File Preview (Last 5 Rows) ---")
+    print("\n--- Accumulation File Preview (Last 5 Rows) ---")
     print(final_df.tail().to_string())
     
     print("Process completed successfully.")

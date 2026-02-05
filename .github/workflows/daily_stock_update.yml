@@ -36,9 +36,7 @@ jobs:
         git config --global user.name 'GitHub Action'
         git config --global user.email 'action@github.com'
         git add StockData/merged_stock_data.pkl
-        # We also might want to commit the downloaded files if desired, but usually just the processed data is enough.
-        # User prompt said "accumulate", implying the PKL is the main output. 
-        # But user also said "retrieve ... keep it in the StockData folder". 
-        # I'll add all files in StockData just in case.
+        git add StockData/merged_stock_data.csv
+        # We also might want to commit the downloaded files if desired
         git add StockData/*
         git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update stock data [skip ci]" && git push)
