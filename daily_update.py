@@ -197,8 +197,9 @@ def merge_and_accumulate(bse_file_name, samco_files, current_date):
     # specific large/midcap SCs
     # Ensure SCRIP CODE is numeric for comparison
     merged_df['SCRIP CODE'] = pd.to_numeric(merged_df['SCRIP CODE'], errors='coerce')
-    filtered_df = merged_df[merged_df['SCRIP CODE'].isin(large_midcap_SC)].copy()
-    
+    # filtered_df = merged_df[merged_df['SCRIP CODE'].isin(large_midcap_SC)].copy()
+    filtered_df = merged_df
+
     if filtered_df.empty:
         print("No records matched the filter criteria.")
     else:
