@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -12,20 +13,50 @@
         .main-container {
             padding: 24px;
         }
+
         .filter-section {
-            background: #fafafa;
+            background: #ffffff;
             padding: 24px;
-            border-radius: 4px;
-            border: 1px solid #ccc;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            border: 1px solid #e0e0e0;
             margin-bottom: 24px;
         }
+
+        .datagrid-container {
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #9e9e9e;
+            /* Gray border for table container */
+        }
+
+        .table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+
+        .table th,
+        .table td {
+            border: 1px solid #e0e0e0;
+            /* Gray border for cells */
+            padding: 8px 12px;
+        }
+
+        .table th {
+            background-color: #f5f5f5;
+            font-weight: 600;
+        }
+
         .pagination {
             margin-top: 24px;
             display: flex;
             justify-content: center;
+            align-items: center;
+            gap: 16px;
         }
     </style>
 </head>
+
 <body>
     <div class="main-container">
         <header class="header header-6">
@@ -40,14 +71,15 @@
         <div class="content-container">
             <div class="content-area">
                 <h2>Stock Data Preview</h2>
-                
+
                 <div class="filter-section">
                     <form action="/" method="GET" class="clr-form clr-form-compact clr-form-horizontal">
                         <div class="clr-form-control">
                             <label for="sc_code" class="clr-control-label">SC CODE</label>
                             <div class="clr-control-container">
                                 <div class="clr-input-wrapper">
-                                    <input type="text" id="sc_code" name="sc_code" placeholder="Enter SC Code..." value="{{ sc_code }}" class="clr-input">
+                                    <input type="text" id="sc_code" name="sc_code" placeholder="Enter SC Code..."
+                                        value="{{ sc_code }}" class="clr-input">
                                 </div>
                             </div>
                         </div>
@@ -55,7 +87,8 @@
                             <label for="sc_name" class="clr-control-label">SC NAME</label>
                             <div class="clr-control-container">
                                 <div class="clr-input-wrapper">
-                                    <input type="text" id="sc_name" name="sc_name" placeholder="Enter SC Name..." value="{{ sc_name }}" class="clr-input">
+                                    <input type="text" id="sc_name" name="sc_name" placeholder="Enter SC Name..."
+                                        value="{{ sc_name }}" class="clr-input">
                                 </div>
                             </div>
                         </div>
@@ -70,7 +103,7 @@
 
                 <div class="datagrid-container">
                     {% if data %}
-                    <table class="table table-compact table-noborder">
+                    <table class="table table-compact">
                         <thead>
                             <tr>
                                 {% for col in columns %}
@@ -88,6 +121,25 @@
                             {% endfor %}
                         </tbody>
                     </table>
+
+                    <!-- Pagination Controls -->
+                    <div class="pagination">
+                        {% if page > 1 %}
+                        <a href="{{ url_for('index', page=page-1, sc_code=sc_code, sc_name=sc_name) }}"
+                            class="btn btn-sm btn-outline">Previous</a>
+                        {% else %}
+                        <button class="btn btn-sm btn-outline" disabled>Previous</button>
+                        {% endif %}
+
+                        <span>Page {{ page }} of {{ total_pages }} ({{ total_records }} records)</span>
+
+                        {% if page < total_pages %} <a
+                            href="{{ url_for('index', page=page+1, sc_code=sc_code, sc_name=sc_name) }}"
+                            class="btn btn-sm btn-outline">Next</a>
+                            {% else %}
+                            <button class="btn btn-sm btn-outline" disabled>Next</button>
+                            {% endif %}
+                    </div>
                     {% else %}
                     <div class="alert alert-info" role="alert">
                         <div class="alert-items">
@@ -95,7 +147,8 @@
                                 <div class="alert-icon-wrapper">
                                     <cds-icon class="alert-icon" shape="info-circle"></cds-icon>
                                 </div>
-                                <span class="alert-text">No data found matching your criteria or data source is empty.</span>
+                                <span class="alert-text">No data found matching your criteria or data source is
+                                    empty.</span>
                             </div>
                         </div>
                     </div>
@@ -105,4 +158,5 @@
         </div>
     </div>
 </body>
+
 </html>

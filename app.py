@@ -35,15 +35,33 @@ def index():
         if sc_name_filter:
             df = df[df['SC_NAME'].str.contains(sc_name_filter, case=False, na=False)]
 
+    # Pagination
+    page = request.args.get('page', 1, type=int)
+    per_page = 100
+    total_records = len(df)
+    total_pages = (total_records + per_page - 1) // per_page
+    
+    # Ensure page is within valid range
+    page = max(1, min(page, total_pages)) if total_pages > 0 else 1
+    
+    start_idx = (page - 1) * per_page
+    end_idx = start_idx + per_page
+    
+    # Slice the dataframe for current page
+    df_page = df.iloc[start_idx:end_idx]
+
     # Convert to dictionary for rendering (list of records)
-    data = df.to_dict(orient='records')
+    data = df_page.to_dict(orient='records')
     columns = df.columns.tolist() if not df.empty else []
 
     return render_template('index.html', 
                          data=data, 
                          columns=columns,
                          sc_code=sc_code_filter,
-                         sc_name=sc_name_filter)
+                         sc_name=sc_name_filter,
+                         page=page,
+                         total_pages=total_pages,
+                         total_records=total_records)
 
 if __name__ == '__main__':
     app.run(debug=True)
