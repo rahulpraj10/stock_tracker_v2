@@ -63,5 +63,65 @@ def index():
                          total_pages=total_pages,
                          total_records=total_records)
 
+def get_min_increase_stocks(days):
+    df = get_data()
+    if df.empty:
+        return []
+    
+    # Ensure Date is datetime
+    if 'Date' in df.columns:
+        df['Date'] = pd.to_datetime(df['Date'])
+    else:
+        # If 'Date' not found, try to use 'DATE' column if available and convert format
+        # Based on CSV header: DATE (int e.g. 4022026 -> 04-02-2026), Date (YYYY-MM-DD)
+        # We prefer 'Date' column which seems to be added during accumulation
+        pass
+
+    # Sort by SC_CODE and Date
+    df = df.sort_values(by=['SC_CODE', 'Date'])
+    
+    results = []
+    
+    # Group by SC_CODE
+    for sc_code, group in df.groupby('SC_CODE'):
+        if len(group) < days + 1:
+            continue
+        
+        # Get last n+1 records to compare n periods of increase
+        recent_data = group.tail(days + 1)
+        volumes = recent_data["DAY'S VOLUME"].tolist()
+        
+        # Check if strictly increasing
+        is_increasing = True
+        for i in range(len(volumes) - 1):
+            if volumes[i+1] <= volumes[i]:
+                is_increasing = False
+                break
+        
+        if is_increasing:
+            # Get latest SC_NAME
+            sc_name = group.iloc[-1]['SC_NAME']
+            results.append({'SC_CODE': sc_code, 'SC_NAME': sc_name, 'Volumes': volumes})
+            
+    return results
+
+@app.route('/strategies', methods=['GET', 'POST'])
+def strategies():
+    selected_strategy = request.args.get('strategy')
+    strategy_results = []
+    days = 5 # Default
+    
+    if selected_strategy == 'min_increase':
+        try:
+            days = int(request.args.get('days', 5))
+            strategy_results = get_min_increase_stocks(days)
+        except ValueError:
+            pass # Handle invalid input gracefully
+
+    return render_template('strategies.html', 
+                         strategy=selected_strategy, 
+                         results=strategy_results,
+                         days=days)
+
 if __name__ == '__main__':
     app.run(debug=True)
