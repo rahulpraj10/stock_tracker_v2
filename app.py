@@ -37,7 +37,7 @@ def index():
 
     # Pagination
     page = request.args.get('page', 1, type=int)
-    per_page = 100
+    per_page = 18
     total_records = len(df)
     total_pages = (total_records + per_page - 1) // per_page
     

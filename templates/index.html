@@ -5,158 +5,317 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Stock Data Viewer</title>
-    <!-- Clarity Design System -->
-    <link rel="stylesheet" href="https://unpkg.com/@clr/ui/clr-ui.min.css" />
-    <link rel="stylesheet" href="https://unpkg.com/@clr/icons/clr-icons.min.css" />
-    <script src="https://unpkg.com/@clr/icons/clr-icons.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <style>
-        .main-container {
+        :root {
+            --primary-color: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg-color: #f3f4f6;
+            --card-bg: #ffffff;
+            --text-main: #1f2937;
+            --text-secondary: #6b7280;
+            --border-color: #e5e7eb;
+            --table-header-bg: #f9fafb;
+            --table-border: #d1d5db;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .container {
+            max-width: 90vw;
+            margin: 0 auto;
             padding: 24px;
         }
 
-        .filter-section {
-            background: #ffffff;
-            padding: 24px;
-            border-radius: 8px;
+        header {
+            background-color: var(--card-bg);
+            border-bottom: 1px solid var(--border-color);
+            padding: 16px 24px;
+            margin-bottom: 32px;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        }
+
+        .brand {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--primary-color);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 12px;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-            border: 1px solid #e0e0e0;
+            padding: 24px;
+            border: 1px solid var(--border-color);
             margin-bottom: 24px;
         }
 
-        .datagrid-container {
-            border-radius: 8px;
-            overflow: hidden;
-            border: 1px solid #9e9e9e;
-            /* Gray border for table container */
-        }
-
-        .table {
-            border-collapse: collapse;
-            width: 100%;
-        }
-
-        .table th,
-        .table td {
-            border: 1px solid #e0e0e0;
-            /* Gray border for cells */
-            padding: 8px 12px;
-        }
-
-        .table th {
-            background-color: #f5f5f5;
+        h2 {
+            font-size: 1.5rem;
             font-weight: 600;
+            margin-bottom: 24px;
+            color: var(--text-main);
         }
 
+        /* Form Styles */
+        .filter-form {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 16px;
+            align-items: end;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        label {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--text-main);
+        }
+
+        input[type="text"] {
+            padding: 10px 14px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 0.95rem;
+            outline: none;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+            font-family: inherit;
+        }
+
+        input[type="text"]:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-weight: 500;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+            text-decoration: none;
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-hover);
+        }
+
+        .btn-outline {
+            background-color: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+        }
+
+        .btn-outline:hover {
+            border-color: var(--text-secondary);
+            background-color: #f9fafb;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background-color: #e5e7eb;
+        }
+
+        .actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        /* Table Styles */
+        .table-container {
+            overflow-x: auto;
+            border-radius: 8px;
+            border: 1px solid var(--table-border);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+            white-space: nowrap;
+        }
+
+        th,
+        td {
+            text-align: left;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        /* Vertical borders */
+        th:not(:last-child),
+        td:not(:last-child) {
+            border-right: 1px solid var(--border-color);
+        }
+
+        th {
+            background-color: var(--table-header-bg);
+            font-weight: 600;
+            color: var(--text-secondary);
+            position: sticky;
+            top: 0;
+            user-select: none;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover td {
+            background-color: #f9fafb;
+        }
+
+        /* Pagination */
         .pagination {
-            margin-top: 24px;
             display: flex;
             justify-content: center;
             align-items: center;
             gap: 16px;
+            margin-top: 24px;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .empty-state {
+            padding: 48px;
+            text-align: center;
+            color: var(--text-secondary);
+            background: var(--card-bg);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        /* Responsiveness */
+        @media (max-width: 640px) {
+            .filter-form {
+                grid-template-columns: 1fr;
+            }
+
+            .actions {
+                width: 100%;
+            }
+
+            .btn {
+                flex: 1;
+            }
         }
     </style>
 </head>
 
 <body>
-    <div class="main-container">
-        <header class="header header-6">
-            <div class="branding">
-                <a href="/" class="nav-link">
-                    <cds-icon shape="bar-chart" class="is-solid"></cds-icon>
-                    <span class="title">Stock Data Viewer</span>
-                </a>
-            </div>
-        </header>
 
-        <div class="content-container">
-            <div class="content-area">
-                <h2>Stock Data Preview</h2>
+    <header>
+        <a href="/" class="brand">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="20" x2="18" y2="10"></line>
+                <line x1="12" y1="20" x2="12" y2="4"></line>
+                <line x1="6" y1="20" x2="6" y2="14"></line>
+            </svg>
+            Stock Data Viewer
+        </a>
+    </header>
 
-                <div class="filter-section">
-                    <form action="/" method="GET" class="clr-form clr-form-compact clr-form-horizontal">
-                        <div class="clr-form-control">
-                            <label for="sc_code" class="clr-control-label">SC CODE</label>
-                            <div class="clr-control-container">
-                                <div class="clr-input-wrapper">
-                                    <input type="text" id="sc_code" name="sc_code" placeholder="Enter SC Code..."
-                                        value="{{ sc_code }}" class="clr-input">
-                                </div>
-                            </div>
-                        </div>
-                        <div class="clr-form-control">
-                            <label for="sc_name" class="clr-control-label">SC NAME</label>
-                            <div class="clr-control-container">
-                                <div class="clr-input-wrapper">
-                                    <input type="text" id="sc_name" name="sc_name" placeholder="Enter SC Name..."
-                                        value="{{ sc_name }}" class="clr-input">
-                                </div>
-                            </div>
-                        </div>
-                        <div class="clr-form-control">
-                            <div class="clr-control-container">
-                                <button type="submit" class="btn btn-primary">Filter</button>
-                                <a href="/" class="btn btn-link">Clear</a>
-                            </div>
-                        </div>
-                    </form>
+    <div class="container">
+
+        <div class="card">
+            <h2>Filter Data</h2>
+            <form action="/" method="GET" class="filter-form">
+                <div class="form-group">
+                    <label for="sc_code">SC CODE</label>
+                    <input type="text" id="sc_code" name="sc_code" placeholder="e.g. 500123" value="{{ sc_code }}">
                 </div>
-
-                <div class="datagrid-container">
-                    {% if data %}
-                    <table class="table table-compact">
-                        <thead>
-                            <tr>
-                                {% for col in columns %}
-                                <th class="left">{{ col }}</th>
-                                {% endfor %}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for row in data %}
-                            <tr>
-                                {% for col in columns %}
-                                <td class="left">{{ row[col] }}</td>
-                                {% endfor %}
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-
-                    <!-- Pagination Controls -->
-                    <div class="pagination">
-                        {% if page > 1 %}
-                        <a href="{{ url_for('index', page=page-1, sc_code=sc_code, sc_name=sc_name) }}"
-                            class="btn btn-sm btn-outline">Previous</a>
-                        {% else %}
-                        <button class="btn btn-sm btn-outline" disabled>Previous</button>
-                        {% endif %}
-
-                        <span>Page {{ page }} of {{ total_pages }} ({{ total_records }} records)</span>
-
-                        {% if page < total_pages %} <a
-                            href="{{ url_for('index', page=page+1, sc_code=sc_code, sc_name=sc_name) }}"
-                            class="btn btn-sm btn-outline">Next</a>
-                            {% else %}
-                            <button class="btn btn-sm btn-outline" disabled>Next</button>
-                            {% endif %}
-                    </div>
-                    {% else %}
-                    <div class="alert alert-info" role="alert">
-                        <div class="alert-items">
-                            <div class="alert-item static">
-                                <div class="alert-icon-wrapper">
-                                    <cds-icon class="alert-icon" shape="info-circle"></cds-icon>
-                                </div>
-                                <span class="alert-text">No data found matching your criteria or data source is
-                                    empty.</span>
-                            </div>
-                        </div>
-                    </div>
-                    {% endif %}
+                <div class="form-group">
+                    <label for="sc_name">SC NAME</label>
+                    <input type="text" id="sc_name" name="sc_name" placeholder="e.g. RELIANCE" value="{{ sc_name }}">
                 </div>
-            </div>
+                <div class="form-group actions">
+                    <button type="submit" class="btn btn-primary">Filter</button>
+                    <a href="/" class="btn btn-outline">Clear</a>
+                </div>
+            </form>
         </div>
+
+        {% if data %}
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        {% for col in columns %}
+                        <th>{{ col }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in data %}
+                    <tr>
+                        {% for col in columns %}
+                        <td>{{ row[col] }}</td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="pagination">
+            {% if page > 1 %}
+            <a href="{{ url_for('index', page=page-1, sc_code=sc_code, sc_name=sc_name) }}"
+                class="btn btn-outline">Previous</a>
+            {% else %}
+            <button class="btn btn-outline" disabled>Previous</button>
+            {% endif %}
+
+            <span>Page {{ page }} of {{ total_pages }} <span style="color: var(--text-secondary); margin-left: 4px;">({{
+                    total_records }} records)</span></span>
+
+            {% if page < total_pages %} <a href="{{ url_for('index', page=page+1, sc_code=sc_code, sc_name=sc_name) }}"
+                class="btn btn-outline">Next</a>
+                {% else %}
+                <button class="btn btn-outline" disabled>Next</button>
+                {% endif %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <p>No data found matching your criteria.</p>
+        </div>
+        {% endif %}
     </div>
+
 </body>
 
 </html>
