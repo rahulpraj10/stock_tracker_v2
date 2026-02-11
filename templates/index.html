@@ -12,6 +12,14 @@
             <label for="sc_name">SC NAME</label>
             <input type="text" id="sc_name" name="sc_name" placeholder="e.g. RELIANCE" value="{{ sc_name }}">
         </div>
+        <div class="form-group">
+            <label for="sc_group">SC GROUP</label>
+            <input type="text" id="sc_group" name="sc_group" placeholder="e.g. A, B, XT" value="{{ sc_group }}">
+        </div>
+        <div class="form-group">
+            <label for="date">Date</label>
+            <input type="date" id="date" name="date" value="{{ date }}">
+        </div>
         <div class="form-group actions">
             <button type="submit" class="btn btn-primary">Filter</button>
             <a href="/" class="btn btn-outline">Clear</a>
@@ -43,7 +51,8 @@
 
 <div class="pagination">
     {% if page > 1 %}
-    <a href="{{ url_for('index', page=page-1, sc_code=sc_code, sc_name=sc_name) }}" class="btn btn-outline">Previous</a>
+    <a href="{{ url_for('index', page=page-1, sc_code=sc_code, sc_name=sc_name, sc_group=sc_group, date=date) }}"
+        class="btn btn-outline">Previous</a>
     {% else %}
     <button class="btn btn-outline" disabled>Previous</button>
     {% endif %}
@@ -51,7 +60,8 @@
     <span>Page {{ page }} of {{ total_pages }} <span style="color: var(--text-secondary); margin-left: 4px;">({{
             total_records }} records)</span></span>
 
-    {% if page < total_pages %} <a href="{{ url_for('index', page=page+1, sc_code=sc_code, sc_name=sc_name) }}"
+    {% if page < total_pages %} <a
+        href="{{ url_for('index', page=page+1, sc_code=sc_code, sc_name=sc_name, sc_group=sc_group, date=date) }}"
         class="btn btn-outline">Next</a>
         {% else %}
         <button class="btn btn-outline" disabled>Next</button>

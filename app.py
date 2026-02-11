@@ -25,15 +25,35 @@ def index():
     # Filter parameters
     sc_code_filter = request.args.get('sc_code', '').strip()
     sc_name_filter = request.args.get('sc_name', '').strip()
+    sc_group_filter = request.args.get('sc_group', '').strip()
+    date_filter = request.args.get('date', '').strip()
     
     # Apply filters if data is available and filters are provided
     if not df.empty:
+        # Ensure Date column is in datetime format for filtering if needed
+        if 'Date' in df.columns and date_filter:
+             df['Date'] = pd.to_datetime(df['Date'])
+
         if sc_code_filter:
             # Convert column to string for flexible searching, handle potential non-string types
             df = df[df['SC_CODE'].astype(str).str.contains(sc_code_filter, case=False, na=False)]
         
         if sc_name_filter:
             df = df[df['SC_NAME'].str.contains(sc_name_filter, case=False, na=False)]
+
+        if sc_group_filter:
+            # Split comma-separated values and strip whitespace
+            groups = [g.strip() for g in sc_group_filter.split(',') if g.strip()]
+            if groups:
+                # Case-insensitive match for groups
+                df = df[df['SC_GROUP'].astype(str).str.upper().isin([g.upper() for g in groups])]
+
+        if date_filter:
+            try:
+                filter_date = pd.to_datetime(date_filter)
+                df = df[df['Date'].dt.date == filter_date.date()]
+            except Exception:
+                pass # Ignore invalid date format
 
     # Pagination
     page = request.args.get('page', 1, type=int)
@@ -59,6 +79,8 @@ def index():
                          columns=columns,
                          sc_code=sc_code_filter,
                          sc_name=sc_name_filter,
+                         sc_group=sc_group_filter,
+                         date=date_filter,
                          page=page,
                          total_pages=total_pages,
                          total_records=total_records)
