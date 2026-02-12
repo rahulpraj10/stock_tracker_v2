@@ -8,6 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
             --primary-color: #2563eb;
@@ -264,6 +265,9 @@
         @media (max-width: 640px) {
             .filter-form {
                 grid-template-columns: 1fr;
+                flex-direction: column !important;
+                /* Force column on small screens */
+                align-items: stretch !important;
             }
 
             .actions {
@@ -308,6 +312,8 @@
                     Data</a>
                 <a href="{{ url_for('strategies') }}"
                     class="nav-link {% if request.path == '/strategies' %}active{% endif %}">Strategies</a>
+                <a href="{{ url_for('paper_trading') }}"
+                    class="nav-link {% if request.path == '/paper_trading' %}active{% endif %}">Paper Trading</a>
                 {% endif %}
             </nav>
         </div>

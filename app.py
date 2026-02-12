@@ -6,9 +6,61 @@ import io
 from datetime import timedelta
 import secrets
 
+# DATA_URL = "https://github.com/rahulpraj10/stock_tracker_v2/raw/main/StockData/merged_stock_data.pkl"
+DB_URL = "https://github.com/rahulpraj10/stock_tracker_v2/raw/main/StockData/stock_data.db"
+import sqlite3
+import os
+from datetime import datetime
+
+DB_PATH = os.path.join("StockData", "stock_data.db")
+if not os.path.exists("StockData"):
+    os.makedirs("StockData")
+
+def get_db_connection():
+    # Check if DB needs to be downloaded
+    if not os.path.exists(DB_PATH):
+        print(f"Downloading database from {DB_URL}...")
+        try:
+            response = requests.get(DB_URL)
+            response.raise_for_status()
+            with open(DB_PATH, 'wb') as f:
+                f.write(response.content)
+            print("Database downloaded.")
+        except Exception as e:
+            print(f"Error downloading database: {e}")
+            return None
+            
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def init_db():
+    conn = get_db_connection()
+    if conn:
+        try:
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS orders (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username TEXT,
+                    sc_code TEXT,
+                    sc_name TEXT,
+                    quantity INTEGER,
+                    order_date TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            conn.commit()
+        except Exception as e:
+            print(f"Error initializing DB: {e}")
+        finally:
+            conn.close()
+
+# Initialize DB on startup (create table if needed)
+init_db()
+
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here_change_in_production' # For development
-app.permanent_session_lifetime = timedelta(minutes=2)
+app.permanent_session_lifetime = timedelta(minutes=5)
 
 # Flask-Login Configuration
 login_manager = LoginManager()
@@ -35,33 +87,6 @@ def load_user(user_id):
 def make_session_permanent():
     session.permanent = True
     app.permanent_session_lifetime = timedelta(minutes=5)
-
-# DATA_URL = "https://github.com/rahulpraj10/stock_tracker_v2/raw/main/StockData/merged_stock_data.pkl"
-DB_URL = "https://github.com/rahulpraj10/stock_tracker_v2/raw/main/StockData/stock_data.db"
-import sqlite3
-import os
-
-DB_PATH = os.path.join("StockData", "stock_data.db")
-if not os.path.exists("StockData"):
-    os.makedirs("StockData")
-
-def get_db_connection():
-    # Check if DB needs to be downloaded
-    if not os.path.exists(DB_PATH):
-        print(f"Downloading database from {DB_URL}...")
-        try:
-            response = requests.get(DB_URL)
-            response.raise_for_status()
-            with open(DB_PATH, 'wb') as f:
-                f.write(response.content)
-            print("Database downloaded.")
-        except Exception as e:
-            print(f"Error downloading database: {e}")
-            return None
-            
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -263,6 +288,140 @@ def strategies():
                          strategy=selected_strategy, 
                          results=strategy_results,
                          days=days)
+
+@app.route('/paper_trading', methods=['GET', 'POST'])
+@login_required
+def paper_trading():
+    conn = get_db_connection()
+    if not conn:
+        flash("Database Error", "error")
+        return redirect(url_for('index'))
+    
+    if request.method == 'POST':
+        sc_code = request.form['sc_code'].strip()
+        # sc_name = request.form['sc_name'].strip() # Optional, maybe fetch from DB based on code
+        order_date = request.form['order_date']
+        quantity = int(request.form['quantity'])
+        
+        # Basic validation
+        if not sc_code or not order_date or quantity <= 0:
+             flash("Invalid input parameters.", "error")
+        else:
+             # Validate date restriction
+             min_date = datetime(2025, 11, 3)
+             max_date = datetime.now()
+             input_date = datetime.strptime(order_date, '%Y-%m-%d')
+             
+             if input_date < min_date or input_date > max_date:
+                  flash("Order date must be between Nov 03, 2025 and Today.", "error")
+             else:
+                  try:
+                      cursor = conn.cursor()
+                      # Verify SC_CODE exists
+                      cursor.execute("SELECT SC_NAME FROM stocks WHERE CAST(SC_CODE AS TEXT) = ? LIMIT 1", (sc_code,))
+                      row = cursor.fetchone()
+                      if row:
+                          real_sc_name = row['SC_NAME']
+                          cursor.execute(
+                              'INSERT INTO orders (username, sc_code, sc_name, quantity, order_date) VALUES (?, ?, ?, ?, ?)',
+                              (current_user.id, sc_code, real_sc_name, quantity, order_date)
+                          )
+                          conn.commit()
+                          flash("Order placed successfully!", "success")
+                      else:
+                          flash("Invalid Stock Code. Please verify.", "error")
+                  except Exception as e:
+                      print(f"Error placing order: {e}")
+                      flash("Failed to place order.", "error")
+
+    # Fetch user's orders
+    orders = []
+    try:
+        orders = conn.execute('SELECT * FROM orders WHERE username = ? ORDER BY created_at DESC', (current_user.id,)).fetchall()
+    except Exception as e:
+        print(f"Error fetching orders: {e}")
+    finally:
+        conn.close()
+
+    return render_template('paper_trading.html', orders=orders)
+
+@app.route('/delete_order/<int:order_id>', methods=['POST'])
+@login_required
+def delete_order(order_id):
+    conn = get_db_connection()
+    if not conn:
+        flash("Database Error", "error")
+        return redirect(url_for('paper_trading'))
+    
+    try:
+        # Verify order belongs to user
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM orders WHERE id = ? AND username = ?", (order_id, current_user.id))
+        if cursor.fetchone():
+            cursor.execute("DELETE FROM orders WHERE id = ?", (order_id,))
+            conn.commit()
+            flash("Order deleted successfully.", "success")
+        else:
+            flash("Order not found or unauthorized.", "error")
+    except Exception as e:
+        print(f"Error deleting order: {e}")
+        flash("Failed to delete order.", "error")
+    finally:
+        conn.close()
+        
+    return redirect(url_for('paper_trading'))
+
+@app.route('/order_chart_data/<int:order_id>')
+@login_required
+def order_chart_data(order_id):
+    conn = get_db_connection()
+    if not conn:
+        return {"error": "Database error"}, 500
+        
+    data = {"dates": [], "values": []}
+    try:
+        order = conn.execute('SELECT * FROM orders WHERE id = ? AND username = ?', (order_id, current_user.id)).fetchone()
+        if order:
+            sc_code = order['sc_code']
+            order_date = order['order_date']
+            quantity = order['quantity']
+            
+            # Log debug info
+            with open("app_debug.log", "a") as f:
+                f.write(f"Chart Request: OrderID={order_id}, SC_CODE={sc_code}, Date={order_date}\n")
+
+            # Fetch stock data from order_date to present
+            # Removed CAST(SC_CODE AS TEXT) to try direct comparison
+            query = """
+                SELECT Date, "CLOSE" 
+                FROM stocks 
+                WHERE SC_CODE = ? AND Date >= ? 
+                ORDER BY Date ASC
+            """
+            rows = conn.execute(query, (sc_code, order_date)).fetchall()
+            
+            with open("app_debug.log", "a") as f:
+                f.write(f"Rows found: {len(rows)}\n")
+
+            for row in rows:
+                data["dates"].append(row['Date'])
+                # Ensure Close is float
+                try:
+                    close_val = float(row['CLOSE'])
+                except:
+                    close_val = 0.0
+                data["values"].append(close_val * quantity)
+                
+    except Exception as e:
+        error_msg = f"Error fetching chart data: {e}"
+        print(error_msg)
+        with open("app_debug.log", "a") as f:
+            f.write(error_msg + "\n")
+        return {"error": str(e)}, 500
+    finally:
+        conn.close()
+        
+    return data
 
 if __name__ == '__main__':
     app.run(debug=True)
