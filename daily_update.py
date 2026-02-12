@@ -247,6 +247,9 @@ def merge_and_accumulate(bse_file_name, samco_files, current_date):
         print("Starting fresh accumulation file.")
         final_df = filtered_df
 
+    # Sort by Date and SCRIP CODE to ensure chronological order
+    final_df.sort_values(by=['Date', 'SCRIP CODE'], inplace=True)
+
     # Save to BOTH CSV and PKL
     print(f"Saving accumulated data to CSV: {csv_path}")
     final_df.to_csv(csv_path, index=False)
@@ -262,6 +265,21 @@ def merge_and_accumulate(bse_file_name, samco_files, current_date):
     print("Process completed successfully.")
 
 import argparse
+
+def process_date(target_date):
+    print(f"Starting execution for date: {target_date.strftime('%Y-%m-%d')}")
+    
+    # 1. BSE
+    bse_file = download_bse_zip(target_date)
+    
+    # 2. Samco
+    samco_files = download_samco_bhavcopy(target_date)
+    
+    # 3. Merge & Process
+    if bse_file and samco_files:
+        merge_and_accumulate(bse_file, samco_files, target_date)
+    else:
+        print("Skipping merge due to missing download(s).")
 
 def main():
     setup_directories()
@@ -279,19 +297,7 @@ def main():
     else:
         now = datetime.datetime.now()
     
-    print(f"Starting execution for date: {now.strftime('%Y-%m-%d')}")
-    
-    # 1. BSE
-    bse_file = download_bse_zip(now)
-    
-    # 2. Samco
-    samco_files = download_samco_bhavcopy(now)
-    
-    # 3. Merge & Process
-    if bse_file and samco_files:
-        merge_and_accumulate(bse_file, samco_files, now)
-    else:
-        print("Skipping merge due to missing download(s).")
+    process_date(now)
 
 if __name__ == "__main__":
     main()
