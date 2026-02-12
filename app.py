@@ -34,7 +34,7 @@ def load_user(user_id):
 @app.before_request
 def make_session_permanent():
     session.permanent = True
-    app.permanent_session_lifetime = timedelta(minutes=2)
+    app.permanent_session_lifetime = timedelta(minutes=5)
 
 # DATA_URL = "https://github.com/rahulpraj10/stock_tracker_v2/raw/main/StockData/merged_stock_data.pkl"
 DB_URL = "https://github.com/rahulpraj10/stock_tracker_v2/raw/main/StockData/stock_data.db"
@@ -45,40 +45,23 @@ DB_PATH = os.path.join("StockData", "stock_data.db")
 if not os.path.exists("StockData"):
     os.makedirs("StockData")
 
-def get_data():
-    try:
-        # Check if DB needs to be downloaded (e.g. if it doesn't exist)
-        # For a read-only viewer on Render, we might want to download it on startup
-        # But here we do it lazily if missing. 
-        # Ideally, we should check for updates, but for now let's ensure presence.
-        if not os.path.exists(DB_PATH):
-            print(f"Downloading database from {DB_URL}...")
+def get_db_connection():
+    # Check if DB needs to be downloaded
+    if not os.path.exists(DB_PATH):
+        print(f"Downloading database from {DB_URL}...")
+        try:
             response = requests.get(DB_URL)
             response.raise_for_status()
             with open(DB_PATH, 'wb') as f:
                 f.write(response.content)
             print("Database downloaded.")
+        except Exception as e:
+            print(f"Error downloading database: {e}")
+            return None
             
-        conn = sqlite3.connect(DB_PATH)
-        # Assuming table name is 'stocks'. If unknown, we could query sqlite_master
-        # But hardcoding is faster if known.
-        query = "SELECT * FROM stocks"
-        
-        # Check if table exists first to avoid error if DB is empty/different
-        cursor = conn.cursor()
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='stocks';")
-        if not cursor.fetchone():
-             # Fallback or error
-             print("Table 'stocks' not found in database.")
-             conn.close()
-             return pd.DataFrame()
-             
-        df = pd.read_sql_query(query, conn)
-        conn.close()
-        return df
-    except Exception as e:
-        print(f"Error loading data: {e}")
-        return pd.DataFrame()
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -107,60 +90,86 @@ def logout():
 @app.route('/', methods=['GET', 'POST'])
 @login_required
 def index():
-    df = get_data()
-    
     # Filter parameters
     sc_code_filter = request.args.get('sc_code', '').strip()
     sc_name_filter = request.args.get('sc_name', '').strip()
     sc_group_filter = request.args.get('sc_group', '').strip()
     date_filter = request.args.get('date', '').strip()
     
-    # Apply filters if data is available and filters are provided
-    if not df.empty:
-        # Ensure Date column is in datetime format for filtering if needed
-        # In SQLite we store as string YYYY-MM-DD, pandas might read as object
-        if 'Date' in df.columns:
-             df['Date'] = pd.to_datetime(df['Date'])
-             
-        if sc_code_filter:
-            # Convert column to string for flexible searching, handle potential non-string types
-            df = df[df['SC_CODE'].astype(str).str.contains(sc_code_filter, case=False, na=False)]
-        
-        if sc_name_filter:
-            df = df[df['SC_NAME'].str.contains(sc_name_filter, case=False, na=False)]
-
-        if sc_group_filter:
-            # Split comma-separated values and strip whitespace
-            groups = [g.strip() for g in sc_group_filter.split(',') if g.strip()]
-            if groups:
-                # Case-insensitive match for groups
-                df = df[df['SC_GROUP'].astype(str).str.upper().isin([g.upper() for g in groups])]
-
-        if date_filter:
-            try:
-                filter_date = pd.to_datetime(date_filter)
-                df = df[df['Date'].dt.date == filter_date.date()]
-            except Exception:
-                pass # Ignore invalid date format
-
     # Pagination
     page = request.args.get('page', 1, type=int)
     per_page = 18
-    total_records = len(df)
-    total_pages = (total_records + per_page - 1) // per_page
     
-    # Ensure page is within valid range
-    page = max(1, min(page, total_pages)) if total_pages > 0 else 1
-    
-    start_idx = (page - 1) * per_page
-    end_idx = start_idx + per_page
-    
-    # Slice the dataframe for current page
-    df_page = df.iloc[start_idx:end_idx]
+    conn = get_db_connection()
+    if not conn:
+        return "Database Error", 500
 
-    # Convert to dictionary for rendering (list of records)
-    data = df_page.to_dict(orient='records')
-    columns = df.columns.tolist() if not df.empty else []
+    try:
+        # Build SQL Query
+        where_clauses = ["1=1"]
+        params = []
+        
+        if sc_code_filter:
+            where_clauses.append("CAST(SC_CODE AS TEXT) LIKE ?")
+            params.append(f"%{sc_code_filter}%")
+        
+        if sc_name_filter:
+            where_clauses.append("SC_NAME LIKE ?")
+            params.append(f"%{sc_name_filter}%")
+            
+        if sc_group_filter:
+            groups = [g.strip() for g in sc_group_filter.split(',') if g.strip()]
+            if groups:
+                placeholders = ','.join(['?'] * len(groups))
+                where_clauses.append(f"UPPER(SC_GROUP) IN ({placeholders})")
+                params.extend([g.upper() for g in groups])
+                
+        if date_filter:
+             # Assuming Date is stored as 'YYYY-MM-DD ...' string or similar. 
+             # We use DATE() function to normalize.
+             where_clauses.append("DATE(Date) = ?")
+             params.append(date_filter)
+
+        where_sql = " AND ".join(where_clauses)
+        
+        # Get Total Count
+        count_sql = f"SELECT COUNT(*) FROM stocks WHERE {where_sql}"
+        cursor = conn.cursor()
+        cursor.execute(count_sql, params)
+        total_records = cursor.fetchone()[0]
+        
+        total_pages = (total_records + per_page - 1) // per_page
+        page = max(1, min(page, total_pages)) if total_pages > 0 else 1
+        
+        start_idx = (page - 1) * per_page
+        
+        # Get Data
+        data_sql = f"SELECT * FROM stocks WHERE {where_sql} LIMIT ? OFFSET ?"
+        # We need to create a new params list for the data query because it has extra args
+        data_params = params + [per_page, start_idx]
+        
+        cursor.execute(data_sql, data_params)
+        rows = cursor.fetchall()
+        
+        # Convert to list of dicts
+        data = [dict(row) for row in rows]
+        
+        # We also need columns for the header. If no data, we might need to fetch schema
+        if rows:
+            columns = rows[0].keys()
+        else:
+            # Fallback to get columns if empty result
+            cursor.execute("SELECT * FROM stocks LIMIT 0")
+            columns = [description[0] for description in cursor.description]
+
+    except Exception as e:
+        print(f"Error querying database: {e}")
+        data = []
+        columns = []
+        total_records = 0
+        total_pages = 0
+    finally:
+        conn.close()
 
     return render_template('index.html', 
                          data=data, 
@@ -174,20 +183,41 @@ def index():
                          total_records=total_records)
 
 def get_min_increase_stocks(days):
-    df = get_data()
-    if df.empty:
+    conn = get_db_connection()
+    if not conn:
         return []
-    
-    # Ensure Date is datetime
-    if 'Date' in df.columns:
-        df['Date'] = pd.to_datetime(df['Date'])
-    else:
-        # If 'Date' not found, try to use 'DATE' column if available and convert format
-        # Based on CSV header: DATE (int e.g. 4022026 -> 04-02-2026), Date (YYYY-MM-DD)
-        # We prefer 'Date' column which seems to be added during accumulation
-        pass
 
-    # Sort by SC_CODE and Date
+    try:
+        # Optimization: Instead of loading all data, fetch only recent data.
+        # 1. Get the last N+1 distinct dates from the database.
+        cursor = conn.cursor()
+        date_query = "SELECT DISTINCT Date FROM stocks ORDER BY Date DESC LIMIT ?"
+        cursor.execute(date_query, (days + 1,))
+        dates = [row[0] for row in cursor.fetchall()]
+        
+        if len(dates) < days + 1:
+            conn.close()
+            return []
+            
+        # 2. Fetch data only for these dates
+        placeholders = ','.join(['?'] * len(dates))
+        query = f"SELECT SC_CODE, SC_NAME, Date, \"DAY'S VOLUME\" FROM stocks WHERE Date IN ({placeholders}) ORDER BY SC_CODE, Date"
+        
+        df = pd.read_sql_query(query, conn, params=dates)
+        
+        # Ensure Date is datetime for sorting if pandas didn't convert
+        if 'Date' in df.columns:
+             df['Date'] = pd.to_datetime(df['Date'])
+             
+    except Exception as e:
+        print(f"Error in strategy: {e}")
+        conn.close()
+        return []
+        
+    conn.close()
+    
+    # Now continue with the Pandas logic on this smaller subset
+    # Sort by SC_CODE and Date (already sorted by SQL but good to verify)
     df = df.sort_values(by=['SC_CODE', 'Date'])
     
     results = []
