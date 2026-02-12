@@ -11,25 +11,7 @@ import time
 STOCK_DATA_DIR = "StockData"
 PKL_FILENAME = "merged_stock_data.pkl"
 
-# List of Scrip Codes to filter
-large_midcap_SC = [
-    500325, 500180, 890157, 532540, 532174, 500112, 500209, 500034, 500696, 500875,
-    500520, 532281, 500247, 532215, 532538, 500114, 541154, 543320, 500049, 512599,
-    540376, 500820, 500790, 539448, 530965, 500188, 543940, 544274, 500300, 500295,
-    505200, 500440, 540005, 541450, 540180, 532343, 500331, 500825, 500425, 544574,
-    532134, 511218, 544569, 532461, 532810, 500087, 500420, 532424, 543287, 532155,
-    532483, 544390, 500550, 500530, 500002, 500480, 500800, 544576, 542652, 532477,
-    539254, 532286, 500116, 544285, 543904, 532814, 534816, 532754, 532955, 532321,
-    544277, 544252, 500096, 500257, 544162, 503806, 500103, 543187, 544632, 544289,
-    543390, 500477, 532667, 540691, 543396, 532388, 544600, 522275, 542649, 532539,
-    532843, 542066, 532648, 544307, 500488, 524804, 526371, 539523, 509480, 500290,
-    500368, 544429, 533519, 543994, 505790, 532187, 540611, 500830, 500493, 532541,
-    512070, 503100, 532149, 540762, 541143, 539437, 532296, 500271, 500113, 500469,
-    543278, 523457, 590071, 509930, 532523, 540222, 500163, 532478, 532827, 502355,
-    544325, 540678, 544238, 544362, 500575, 542772, 532525, 532522, 544449, 542216,
-    500495, 532497, 540153, 517569, 532830, 500411, 544609, 532505, 500067, 539551,
-    500164, 524000, 500092, 523395, 524494, 544597, 532259, 543654
-]
+
 
 def setup_directories():
     if not os.path.exists(STOCK_DATA_DIR):
@@ -192,18 +174,25 @@ def merge_and_accumulate(bse_file_name, samco_files, current_date):
     # Usually implies getting attributes from both. Inner join is safest to ensure data integrity.
     merged_df = pd.merge(df_bse, df_samco, left_on='SCRIP CODE', right_on='SC_CODE', how='inner')
     
-    # Filter by SC_CODE in huge array
-    print(f"Filtering for {len(large_midcap_SC)} Scrip Codes...")
-    # specific large/midcap SCs
+    # Post-merge processing
     # Ensure SCRIP CODE is numeric for comparison
     merged_df['SCRIP CODE'] = pd.to_numeric(merged_df['SCRIP CODE'], errors='coerce')
-    # filtered_df = merged_df[merged_df['SCRIP CODE'].isin(large_midcap_SC)].copy()
     filtered_df = merged_df
 
     if filtered_df.empty:
         print("No records matched the filter criteria.")
     else:
         print(f"Filtered data has {len(filtered_df)} rows.")
+
+    # Rename conflicting 'DATE' column from source if exists
+    if 'DATE' in filtered_df.columns:
+        print("Renaming source 'DATE' column to 'DATE_GEN'")
+        filtered_df.rename(columns={'DATE': 'DATE_GEN'}, inplace=True)
+    
+    # Also handle 'Date' just in case
+    elif 'Date' in filtered_df.columns:
+        print("Renaming source 'Date' column to 'DATE_GEN'")
+        filtered_df.rename(columns={'Date': 'DATE_GEN'}, inplace=True)
 
     # Add Date column for tracking over accumulation
     filtered_df['Date'] = current_date.strftime("%Y-%m-%d")
@@ -257,6 +246,24 @@ def merge_and_accumulate(bse_file_name, samco_files, current_date):
     print(f"Saving accumulated data to PKL: {pkl_path}")
     final_df.to_pickle(pkl_path)
     
+    # Save to SQLite Database
+    import sqlite3
+    db_path = os.path.join(STOCK_DATA_DIR, "stock_data.db")
+    print(f"Saving accumulated data to SQLite: {db_path}")
+    try:
+        conn = sqlite3.connect(db_path)
+        # Store Date as string (YYYY-MM-DD) for SQLite compatibility
+        # Create a copy to not affect final_df if used later (though it's the end of func)
+        db_df = final_df.copy()
+        if 'Date' in db_df.columns:
+             db_df['Date'] = pd.to_datetime(db_df['Date']).dt.date
+        
+        db_df.to_sql('stocks', conn, if_exists='replace', index=False)
+        conn.close()
+        print("SQLite update successful.")
+    except Exception as e:
+        print(f"Error saving to SQLite: {e}")
+
     print("\n--- Accumulation File Preview (First 5 Rows) ---")
     print(final_df.head().to_string())
     print("\n--- Accumulation File Preview (Last 5 Rows) ---")

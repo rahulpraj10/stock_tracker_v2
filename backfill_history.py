@@ -21,8 +21,8 @@ def run_backfill(start_date, end_date):
         current += datetime.timedelta(days=1)
 
 if __name__ == "__main__":
-    start = datetime.datetime(2025, 11, 3) # Nov 3rd, 2025
-    end = datetime.datetime(2026, 2, 3)    # Feb 3rd, 2026
+    start = datetime.datetime(2026, 2, 4) # Nov 3rd, 2025
+    end = datetime.datetime(2026, 2, 11)    # Feb 3rd, 2026
     
     # We are appending to existing data (which has Feb 4+), so DO NOT delete existing files.
     # The updated daily_update.py sorting logic will handle the ordering.

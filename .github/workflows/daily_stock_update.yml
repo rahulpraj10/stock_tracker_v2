@@ -37,6 +37,7 @@ jobs:
         git config --global user.email 'action@github.com'
         git add StockData/merged_stock_data.pkl
         git add StockData/merged_stock_data.csv
+        git add StockData/stock_data.db
         # We also might want to commit the downloaded files if desired
         git add StockData/*
         git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update stock data [skip ci]" && git push)

@@ -36,14 +36,21 @@ def make_session_permanent():
     session.permanent = True
     app.permanent_session_lifetime = timedelta(minutes=2)
 
-DATA_URL = "https://github.com/rahulpraj10/stock_tracker_v2/raw/main/StockData/merged_stock_data.pkl"
+# DATA_URL = "https://github.com/rahulpraj10/stock_tracker_v2/raw/main/StockData/merged_stock_data.pkl"
+import sqlite3
+import os
+
+DB_PATH = os.path.join("StockData", "stock_data.db")
 
 def get_data():
     try:
-        response = requests.get(DATA_URL)
-        response.raise_for_status()
-        # Read the pickle data from bytes
-        df = pd.read_pickle(io.BytesIO(response.content))
+        if not os.path.exists(DB_PATH):
+            print(f"Database not found at {DB_PATH}")
+            return pd.DataFrame()
+            
+        conn = sqlite3.connect(DB_PATH)
+        df = pd.read_sql_query("SELECT * FROM stocks", conn)
+        conn.close()
         return df
     except Exception as e:
         print(f"Error loading data: {e}")
@@ -87,9 +94,10 @@ def index():
     # Apply filters if data is available and filters are provided
     if not df.empty:
         # Ensure Date column is in datetime format for filtering if needed
-        if 'Date' in df.columns and date_filter:
+        # In SQLite we store as string YYYY-MM-DD, pandas might read as object
+        if 'Date' in df.columns:
              df['Date'] = pd.to_datetime(df['Date'])
-
+             
         if sc_code_filter:
             # Convert column to string for flexible searching, handle potential non-string types
             df = df[df['SC_CODE'].astype(str).str.contains(sc_code_filter, case=False, na=False)]
