@@ -37,19 +37,43 @@ def make_session_permanent():
     app.permanent_session_lifetime = timedelta(minutes=2)
 
 # DATA_URL = "https://github.com/rahulpraj10/stock_tracker_v2/raw/main/StockData/merged_stock_data.pkl"
+DB_URL = "https://github.com/rahulpraj10/stock_tracker_v2/raw/main/StockData/stock_data.db"
 import sqlite3
 import os
 
 DB_PATH = os.path.join("StockData", "stock_data.db")
+if not os.path.exists("StockData"):
+    os.makedirs("StockData")
 
 def get_data():
     try:
+        # Check if DB needs to be downloaded (e.g. if it doesn't exist)
+        # For a read-only viewer on Render, we might want to download it on startup
+        # But here we do it lazily if missing. 
+        # Ideally, we should check for updates, but for now let's ensure presence.
         if not os.path.exists(DB_PATH):
-            print(f"Database not found at {DB_PATH}")
-            return pd.DataFrame()
+            print(f"Downloading database from {DB_URL}...")
+            response = requests.get(DB_URL)
+            response.raise_for_status()
+            with open(DB_PATH, 'wb') as f:
+                f.write(response.content)
+            print("Database downloaded.")
             
         conn = sqlite3.connect(DB_PATH)
-        df = pd.read_sql_query("SELECT * FROM stocks", conn)
+        # Assuming table name is 'stocks'. If unknown, we could query sqlite_master
+        # But hardcoding is faster if known.
+        query = "SELECT * FROM stocks"
+        
+        # Check if table exists first to avoid error if DB is empty/different
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='stocks';")
+        if not cursor.fetchone():
+             # Fallback or error
+             print("Table 'stocks' not found in database.")
+             conn.close()
+             return pd.DataFrame()
+             
+        df = pd.read_sql_query(query, conn)
         conn.close()
         return df
     except Exception as e:
