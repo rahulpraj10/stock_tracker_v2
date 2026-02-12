@@ -1,9 +1,40 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, redirect, url_for, flash, session
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 import pandas as pd
 import requests
 import io
+from datetime import timedelta
+import secrets
 
 app = Flask(__name__)
+app.secret_key = 'your_secret_key_here_change_in_production' # For development
+app.permanent_session_lifetime = timedelta(minutes=2)
+
+# Flask-Login Configuration
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+
+# Mock Database
+USERS = {
+    'rahul': {'password': 'rahul123'},
+    'snehashish': {'password': 'sneh123'}
+}
+
+class User(UserMixin):
+    def __init__(self, id):
+        self.id = id
+
+@login_manager.user_loader
+def load_user(user_id):
+    if user_id in USERS:
+        return User(user_id)
+    return None
+
+@app.before_request
+def make_session_permanent():
+    session.permanent = True
+    app.permanent_session_lifetime = timedelta(minutes=2)
 
 DATA_URL = "https://github.com/rahulpraj10/stock_tracker_v2/raw/main/StockData/merged_stock_data.pkl"
 
@@ -18,7 +49,32 @@ def get_data():
         print(f"Error loading data: {e}")
         return pd.DataFrame()
 
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+        
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        
+        if username in USERS and USERS[username]['password'] == password:
+            user = User(username)
+            login_user(user)
+            return redirect(url_for('index'))
+        else:
+            flash('Invalid username or password', 'error')
+            
+    return render_template('login.html')
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
+
 @app.route('/', methods=['GET', 'POST'])
+@login_required
 def index():
     df = get_data()
     
@@ -128,6 +184,7 @@ def get_min_increase_stocks(days):
     return results
 
 @app.route('/strategies', methods=['GET', 'POST'])
+@login_required
 def strategies():
     selected_strategy = request.args.get('strategy')
     strategy_results = []

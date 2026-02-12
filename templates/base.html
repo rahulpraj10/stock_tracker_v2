@@ -303,12 +303,21 @@
                 Stock Data Viewer
             </a>
             <nav class="nav-links">
+                {% if current_user.is_authenticated %}
                 <a href="{{ url_for('index') }}" class="nav-link {% if request.path == '/' %}active{% endif %}">Stock
                     Data</a>
                 <a href="{{ url_for('strategies') }}"
                     class="nav-link {% if request.path == '/strategies' %}active{% endif %}">Strategies</a>
+                {% endif %}
             </nav>
         </div>
+
+        {% if current_user.is_authenticated %}
+        <div>
+            <a href="{{ url_for('logout') }}" class="btn btn-outline"
+                style="padding: 8px 16px; font-size: 13px;">Logout</a>
+        </div>
+        {% endif %}
     </header>
 
     <div class="container">
