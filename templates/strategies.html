@@ -103,14 +103,145 @@
     <div class="strategy-content-area">
         <div id="double-bottom" class="strategy-pane active">
             <h2>Double Bottom Indicator</h2>
-            <p style="color: var(--text-secondary);">Strategy logic and results for Double Bottom Indicator will appear
-                here.</p>
+            <p style="color: var(--text-secondary); margin-bottom: 20px;">
+                Identify stocks forming a "W" pattern, indicating a potential bullish reversal.
+                <br><strong>Criteria:</strong> Two distinct lows (bottoms) roughly at the same price level, separated by
+                a peak (neckline).
+            </p>
+
+            <form method="GET" action="{{ url_for('strategies') }}" class="filter-form" style="margin-bottom: 24px;">
+                <input type="hidden" name="strategy" value="double_bottom">
+
+                <div
+                    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; width: 100%;">
+                    <div class="form-group">
+                        <label for="lookback">Lookback Days</label>
+                        <input type="number" id="lookback" name="lookback" value="{{ params.lookback }}" min="30"
+                            max="365">
+                    </div>
+                    <div class="form-group">
+                        <label for="min_days">Min Days Between</label>
+                        <input type="number" id="min_days" name="min_days" value="{{ params.min_days }}" min="5"
+                            max="50">
+                    </div>
+                    <div class="form-group">
+                        <label for="max_days">Max Days Between</label>
+                        <input type="number" id="max_days" name="max_days" value="{{ params.max_days }}" min="10"
+                            max="100">
+                    </div>
+                    <div class="form-group">
+                        <label for="tolerance">Price Tolerance (%)</label>
+                        <input type="number" id="tolerance" name="tolerance" value="{{ params.tolerance }}" step="0.1"
+                            min="0.1" max="10">
+                    </div>
+                    <div class="form-group">
+                        <label for="prominence">Peak Prominence (%)</label>
+                        <input type="number" id="prominence" name="prominence" value="{{ params.prominence }}"
+                            step="0.1" min="1" max="20">
+                    </div>
+                    <div class="form-group" style="display: flex; align-items: flex-end;">
+                        <button type="submit" class="btn btn-primary" style="width: 100%;">Find Patterns</button>
+                    </div>
+                </div>
+            </form>
+
+            {% if strategy == 'double_bottom' %}
+            {% if results %}
+            <div style="margin-bottom: 16px; font-weight: 500;">
+                Found {{ results|length }} stocks matching Double Bottom pattern.
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>SC_CODE</th>
+                            <th>Stock Name</th>
+                            <th>Bottom 1</th>
+                            <th>Neckline</th>
+                            <th>Bottom 2 Date</th>
+                            <th>Bottom 2 Price</th>
+                            <th>Prominence</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for stock in results %}
+                        <tr>
+                            <td>{{ stock.SC_CODE }}</td>
+                            <td>{{ stock.SC_NAME }}</td>
+                            <td>
+                                <div>{{ stock.Bottom1_Price }}</div>
+                                <div style="font-size: 0.85em; color: var(--text-secondary);">{{ stock.Bottom1_Date }}
+                                </div>
+                            </td>
+                            <td>
+                                <div>{{ stock.Neckline_Price }}</div>
+                            </td>
+                            <td>{{ stock.Bottom2_Date }}</td>
+                            <td>{{ stock.Bottom2_Price }}</td>
+                            <td>{{ stock.Prominence_Pct }}%</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <p>No stocks found matching the Double Bottom criteria with current parameters.</p>
+            </div>
+            {% endif %}
+            {% endif %}
         </div>
 
         <div id="bullish-reversal" class="strategy-pane">
             <h2>Bullish Reversal</h2>
-            <p style="color: var(--text-secondary);">Strategy logic and results for Bullish Reversal will appear here.
+            <p style="color: var(--text-secondary); margin-bottom: 20px;">
+                Identify stocks that are reversing from a downtrend with high volume and delivery.<br>
+                <strong>Criteria:</strong> Price Increase today, 3-day decline prior, Volume > 5-day Avg, Delivery >
+                50%.
             </p>
+
+            <form method="GET" action="{{ url_for('strategies') }}" style="margin-bottom: 24px;">
+                <input type="hidden" name="strategy" value="bullish_reversal">
+                <button type="submit" class="btn btn-primary">Find Reversal Stocks</button>
+            </form>
+
+            {% if strategy == 'bullish_reversal' %}
+            {% if results %}
+            <div style="margin-bottom: 16px; font-weight: 500;">
+                Found {{ results|length }} stocks matching Bullish Reversal criteria.
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>SC_CODE</th>
+                            <th>Stock Name</th>
+                            <th>Date</th>
+                            <th>Close</th>
+                            <th>Volume</th>
+                            <th>Delv %</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for stock in results %}
+                        <tr>
+                            <td>{{ stock.SC_CODE }}</td>
+                            <td>{{ stock.SC_NAME }}</td>
+                            <td>{{ stock.Date }}</td>
+                            <td>{{ stock.Close }}</td>
+                            <td>{{ stock.Volume }}</td>
+                            <td>{{ stock.Delv_Per }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <p>No stocks found matching the Bullish Reversal criteria.</p>
+            </div>
+            {% endif %}
+            {% endif %}
         </div>
 
         <div id="multi-frame" class="strategy-pane">
@@ -215,6 +346,10 @@
 
         if (strategy === 'min_increase') {
             openStrategy({ currentTarget: document.querySelector("button[onclick*='min-5-day']") }, 'min-5-day');
+        } else if (strategy === 'bullish_reversal') {
+            openStrategy({ currentTarget: document.querySelector("button[onclick*='bullish-reversal']") }, 'bullish-reversal');
+        } else if (strategy === 'double_bottom') {
+            openStrategy({ currentTarget: document.querySelector("button[onclick*='double-bottom']") }, 'double-bottom');
         }
         // Add more conditions here as we implement other strategies
     };

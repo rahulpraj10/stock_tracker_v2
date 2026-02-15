@@ -1,38 +1,16 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, session
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 import pandas as pd
-import requests
-import io
 from datetime import timedelta
 import secrets
+from database import get_db_connection
+from strategies.min_increase import get_min_increase_stocks
+from strategies.bullish_reversal import get_bullish_reversal_stocks
+from strategies.double_bottom import get_double_bottom_stocks
 
-# DATA_URL = "https://github.com/rahulpraj10/stock_tracker_v2/raw/main/StockData/merged_stock_data.pkl"
-DB_URL = "https://github.com/rahulpraj10/stock_tracker_v2/raw/main/StockData/stock_data.db"
-import sqlite3
-import os
-from datetime import datetime
+# ... (Previous imports remain)
 
-DB_PATH = os.path.join("StockData", "stock_data.db")
-if not os.path.exists("StockData"):
-    os.makedirs("StockData")
-
-def get_db_connection():
-    # Check if DB needs to be downloaded
-    if not os.path.exists(DB_PATH):
-        print(f"Downloading database from {DB_URL}...")
-        try:
-            response = requests.get(DB_URL)
-            response.raise_for_status()
-            with open(DB_PATH, 'wb') as f:
-                f.write(response.content)
-            print("Database downloaded.")
-        except Exception as e:
-            print(f"Error downloading database: {e}")
-            return None
-            
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+# ... (Previous code remains)
 
 def init_db():
     conn = get_db_connection()
@@ -207,87 +185,47 @@ def index():
                          total_pages=total_pages,
                          total_records=total_records)
 
-def get_min_increase_stocks(days):
-    conn = get_db_connection()
-    if not conn:
-        return []
-
-    try:
-        # Optimization: Instead of loading all data, fetch only recent data.
-        # 1. Get the last N+1 distinct dates from the database.
-        cursor = conn.cursor()
-        date_query = "SELECT DISTINCT Date FROM stocks ORDER BY Date DESC LIMIT ?"
-        cursor.execute(date_query, (days + 1,))
-        dates = [row[0] for row in cursor.fetchall()]
-        
-        if len(dates) < days + 1:
-            conn.close()
-            return []
-            
-        # 2. Fetch data only for these dates
-        placeholders = ','.join(['?'] * len(dates))
-        query = f"SELECT SC_CODE, SC_NAME, Date, \"DAY'S VOLUME\" FROM stocks WHERE Date IN ({placeholders}) ORDER BY SC_CODE, Date"
-        
-        df = pd.read_sql_query(query, conn, params=dates)
-        
-        # Ensure Date is datetime for sorting if pandas didn't convert
-        if 'Date' in df.columns:
-             df['Date'] = pd.to_datetime(df['Date'])
-             
-    except Exception as e:
-        print(f"Error in strategy: {e}")
-        conn.close()
-        return []
-        
-    conn.close()
-    
-    # Now continue with the Pandas logic on this smaller subset
-    # Sort by SC_CODE and Date (already sorted by SQL but good to verify)
-    df = df.sort_values(by=['SC_CODE', 'Date'])
-    
-    results = []
-    
-    # Group by SC_CODE
-    for sc_code, group in df.groupby('SC_CODE'):
-        if len(group) < days + 1:
-            continue
-        
-        # Get last n+1 records to compare n periods of increase
-        recent_data = group.tail(days + 1)
-        volumes = recent_data["DAY'S VOLUME"].tolist()
-        
-        # Check if strictly increasing
-        is_increasing = True
-        for i in range(len(volumes) - 1):
-            if volumes[i+1] <= volumes[i]:
-                is_increasing = False
-                break
-        
-        if is_increasing:
-            # Get latest SC_NAME
-            sc_name = group.iloc[-1]['SC_NAME']
-            results.append({'SC_CODE': sc_code, 'SC_NAME': sc_name, 'Volumes': volumes})
-            
-    return results
-
 @app.route('/strategies', methods=['GET', 'POST'])
 @login_required
 def strategies():
     selected_strategy = request.args.get('strategy')
     strategy_results = []
-    days = 5 # Default
     
+    # Default parameters for strategies
+    params = {
+        'days': 5, # for min_increase
+        'min_days': 10,
+        'max_days': 60,
+        'tolerance': 3.0,
+        'lookback': 90,
+        'prominence': 5.0
+    }
+    
+    # Update params from request
+    for key in params:
+        if request.args.get(key):
+            try:
+                params[key] = float(request.args.get(key)) if '.' in request.args.get(key) else int(request.args.get(key))
+            except ValueError:
+                pass
+
     if selected_strategy == 'min_increase':
-        try:
-            days = int(request.args.get('days', 5))
-            strategy_results = get_min_increase_stocks(days)
-        except ValueError:
-            pass # Handle invalid input gracefully
+        strategy_results = get_min_increase_stocks(params['days'])
+    elif selected_strategy == 'bullish_reversal':
+         strategy_results = get_bullish_reversal_stocks()
+    elif selected_strategy == 'double_bottom':
+        strategy_results = get_double_bottom_stocks(
+            min_days=params['min_days'], 
+            max_days=params['max_days'], 
+            tolerance_pct=params['tolerance'], 
+            lookback_days=params['lookback'], 
+            peak_prominence_pct=params['prominence']
+        )
 
     return render_template('strategies.html', 
                          strategy=selected_strategy, 
                          results=strategy_results,
-                         days=days)
+                         params=params)
 
 @app.route('/paper_trading', methods=['GET', 'POST'])
 @login_required
@@ -425,3 +363,5 @@ def order_chart_data(order_id):
 
 if __name__ == '__main__':
     app.run(debug=True)
+
+
