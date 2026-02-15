@@ -271,9 +271,97 @@ def merge_and_accumulate(bse_file_name, samco_files, current_date):
     
     print("Process completed successfully.")
 
+def prune_data(days_to_remove=1):
+    """
+    Removes the oldest 'days_to_remove' dates from the accumulated data.
+    Updates CSV, PKL, and SQLite DB.
+    """
+    if days_to_remove <= 0:
+        return
+
+    csv_path = os.path.join(STOCK_DATA_DIR, "merged_stock_data.csv")
+    pkl_path = os.path.join(STOCK_DATA_DIR, PKL_FILENAME)
+    db_path = os.path.join(STOCK_DATA_DIR, "stock_data.db")
+    
+    df = None
+    
+    # Load existing data (Prefer CSV)
+    if os.path.exists(csv_path):
+        try:
+            df = pd.read_csv(csv_path)
+            # Ensure 'SCRIP CODE' is numeric
+            if 'SCRIP CODE' in df.columns:
+                df['SCRIP CODE'] = pd.to_numeric(df['SCRIP CODE'], errors='coerce')
+        except Exception as e:
+            print(f"Error reading CSV for pruning: {e}")
+            
+    if df is None and os.path.exists(pkl_path):
+         try:
+            df = pd.read_pickle(pkl_path)
+         except Exception as e:
+            print(f"Error reading PKL for pruning: {e}")
+            
+    if df is None or df.empty:
+        print("No data found to prune.")
+        return
+
+    # Handle Date column types
+    if 'Date' in df.columns:
+         # Convert to datetime for sorting
+         df['Date'] = pd.to_datetime(df['Date'])
+    elif 'DATE_GEN' in df.columns: # Determine if DATE_GEN is the date column
+         df['Date'] = pd.to_datetime(df['DATE_GEN']) # Use standard name for logic
+    else:
+        print("Date column not found, cannot prune.")
+        return
+
+    # Get unique dates sorted locally
+    unique_dates = sorted(df['Date'].unique())
+    
+    if len(unique_dates) <= days_to_remove:
+        print(f"Cannot prune {days_to_remove} days. Only {len(unique_dates)} days of data exist.")
+        return
+        
+    dates_to_remove = unique_dates[:days_to_remove]
+    print(f"Pruning data for dates: {[d.strftime('%Y-%m-%d') for d in dates_to_remove]}")
+    
+    # Filter out these dates
+    original_count = len(df)
+    df_pruned = df[~df['Date'].isin(dates_to_remove)].copy()
+    new_count = len(df_pruned)
+    
+    print(f"Removed {original_count - new_count} rows. Remaining rows: {new_count}")
+
+    # Save updates
+    # 1. CSV
+    df_pruned.to_csv(csv_path, index=False)
+    print(f"Updated CSV: {csv_path}")
+    
+    # 2. PKL
+    df_pruned.to_pickle(pkl_path)
+    print(f"Updated PKL: {pkl_path}")
+    
+    # 3. SQLite
+    import sqlite3
+    try:
+        conn = sqlite3.connect(db_path)
+        db_df = df_pruned.copy()
+        if 'Date' in db_df.columns:
+             db_df['Date'] = db_df['Date'].dt.date
+        db_df.to_sql('stocks', conn, if_exists='replace', index=False)
+        conn.close()
+        print(f"Updated SQLite DB: {db_path}")
+    except Exception as e:
+        print(f"Error updating SQLite DB during pruning: {e}")
+
 import argparse
 
 def process_date(target_date):
+    # Prune oldest day(s) before adding new data
+    # Default is 1 day for daily run
+    print("Running pre-process pruning (maintaining 60-day window)...")
+    prune_data(1)
+
     print(f"Starting execution for date: {target_date.strftime('%Y-%m-%d')}")
     
     # 1. BSE
@@ -293,7 +381,15 @@ def main():
     
     parser = argparse.ArgumentParser(description="Download and process stock data for a specific date.")
     parser.add_argument("--date", type=str, help="Date in YYYY-MM-DD format (default: today)")
+    parser.add_argument("--prune", type=int, help="Number of oldest days to prune immediately (Manual cleanup)")
     args = parser.parse_args()
+    
+    if args.prune:
+        print(f"Manual pruning requested: {args.prune} days.")
+        prune_data(args.prune)
+        return # Exit after manual prune if specified? Or continue? 
+        # User requested: "for daily run the delete function will take the argument as 1"
+        # If running manual prune, probably just want to prune.
     
     if args.date:
         try:
