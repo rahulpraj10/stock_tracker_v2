@@ -121,8 +121,30 @@
 
 <div class="filter-section">
     <h3 style="margin-bottom: 12px;">Place New Order</h3>
-    <form method="POST" class="filter-form" style="display: flex; gap: 16px; align-items: flex-end;">
-        <div class="form-group" style="flex: 1;">
+    <form method="POST" class="filter-form" style="display: flex; gap: 16px; align-items: flex-end; position: relative;"
+        autocomplete="off">
+        <div class="form-group" style="flex: 1.5; position: relative;">
+            <label for="stock_name">Stock Name</label>
+            <input type="text" id="stock_name" class="form-control" placeholder="Type to search..." autocomplete="off">
+            <ul id="suggestions-list" style="
+                position: absolute;
+                top: 100%;
+                left: 0;
+                right: 0;
+                background: white;
+                border: 1px solid var(--border-color);
+                border-radius: 6px;
+                max-height: 200px;
+                overflow-y: auto;
+                list-style: none;
+                padding: 0;
+                margin: 4px 0 0 0;
+                z-index: 1000;
+                display: none;
+                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            "></ul>
+        </div>
+        <div class="form-group" style="flex: 0.8;">
             <label for="sc_code">Stock Code</label>
             <input type="text" id="sc_code" name="sc_code" class="form-control" placeholder="e.g. 500325" required>
         </div>
@@ -130,13 +152,70 @@
             <label for="order_date">Order Date (Min: Nov 03, 2025)</label>
             <input type="date" id="order_date" name="order_date" class="form-control" min="2025-11-03" required>
         </div>
-        <div class="form-group" style="flex: 1;">
+        <div class="form-group" style="flex: 0.8;">
             <label for="quantity">Quantity</label>
             <input type="number" id="quantity" name="quantity" class="form-control" min="1" value="1" required>
         </div>
         <button type="submit" class="btn btn-primary" style="height: 40px;">Place Order</button>
     </form>
 </div>
+
+<script>
+    const nameInput = document.getElementById('stock_name');
+    const suggestionsList = document.getElementById('suggestions-list');
+    const codeInput = document.getElementById('sc_code');
+    let debounceTimer;
+
+    nameInput.addEventListener('input', function () {
+        clearTimeout(debounceTimer);
+        const query = this.value;
+        if (query.length < 2) {
+            suggestionsList.style.display = 'none';
+            return;
+        }
+
+        debounceTimer = setTimeout(async () => {
+            try {
+                const response = await fetch(`/api/search_stocks?q=${encodeURIComponent(query)}`);
+                const results = await response.json();
+
+                suggestionsList.innerHTML = '';
+                if (results.length > 0) {
+                    results.forEach(stock => {
+                        const li = document.createElement('li');
+                        li.textContent = `${stock.sc_name} (${stock.sc_code})`;
+                        li.style.padding = '8px 12px';
+                        li.style.cursor = 'pointer';
+                        li.style.borderBottom = '1px solid #f3f4f6';
+                        li.style.fontSize = '12px';
+
+                        li.addEventListener('mouseenter', () => li.style.backgroundColor = '#f3f4f6');
+                        li.addEventListener('mouseleave', () => li.style.backgroundColor = 'white');
+
+                        li.addEventListener('click', () => {
+                            nameInput.value = stock.sc_name;
+                            codeInput.value = stock.sc_code;
+                            suggestionsList.style.display = 'none';
+                        });
+                        suggestionsList.appendChild(li);
+                    });
+                    suggestionsList.style.display = 'block';
+                } else {
+                    suggestionsList.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error fetching autocomplete:', error);
+            }
+        }, 300);
+    });
+
+    // Close suggestions when clicking outside
+    document.addEventListener('click', function (e) {
+        if (e.target !== nameInput && e.target !== suggestionsList) {
+            suggestionsList.style.display = 'none';
+        }
+    });
+</script>
 
 {% if summary %}
 <div

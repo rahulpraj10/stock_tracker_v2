@@ -360,7 +360,7 @@ def process_date(target_date):
     # Prune oldest day(s) before adding new data
     # Default is 1 day for daily run
     print("Running pre-process pruning (maintaining 60-day window)...")
-    prune_data(1)
+    # prune_data(1)
 
     print(f"Starting execution for date: {target_date.strftime('%Y-%m-%d')}")
     

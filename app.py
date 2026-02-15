@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 import pandas as pd
 from datetime import timedelta, datetime
@@ -541,6 +541,30 @@ def order_chart_data(order_id):
         conn_orders.close()
         
     return data
+
+@app.route('/api/search_stocks')
+@login_required
+def search_stocks():
+    query_str = request.args.get('q', '').strip()
+    if not query_str or len(query_str) < 2:
+        return jsonify([])
+        
+    conn = get_stock_db_connection()
+    if not conn:
+        return jsonify([])
+        
+    try:
+        # Search for stock names containing the query string
+        # Limit results to 10
+        sql = 'SELECT DISTINCT "SC NAME", "SCRIP CODE" FROM stocks WHERE "SC NAME" LIKE ? LIMIT 10'
+        cursor = conn.execute(sql, ('%' + query_str + '%',))
+        results = [{'sc_name': row['SC NAME'], 'sc_code': row['SCRIP CODE']} for row in cursor.fetchall()]
+        return jsonify(results)
+    except Exception as e:
+        print(f"Error searching stocks: {e}")
+        return jsonify([])
+    finally:
+        conn.close()
 
 if __name__ == '__main__':
     app.run(debug=True)

@@ -310,3 +310,23 @@ Chart Request: OrderID=7, SC_CODE=500031, Date=2026-01-01
 Rows found: 30
 Chart Request: OrderID=8, SC_CODE=500180, Date=2026-02-09
 Rows found: 5
+Chart Request: OrderID=11, SC_CODE=524661, Date=2025-11-10
+Rows found: 60
+Chart Request: OrderID=12, SC_CODE=500180, Date=2026-02-02
+Rows found: 10
+Chart Request: OrderID=12, SC_CODE=500180, Date=2026-02-02
+Rows found: 10
+Chart Request: OrderID=11, SC_CODE=524661, Date=2025-11-10
+Rows found: 60
+Chart Request: OrderID=10, SC_CODE=532540, Date=2026-02-02
+Rows found: 10
+Chart Request: OrderID=11, SC_CODE=524661, Date=2025-11-10
+Rows found: 60
+Chart Request: OrderID=14, SC_CODE=500180, Date=2026-02-02
+Rows found: 10
+Chart Request: OrderID=13, SC_CODE=500180, Date=2026-02-02
+Rows found: 10
+Chart Request: OrderID=3, SC_CODE=532540, Date=2025-12-30
+Rows found: 32
+Chart Request: OrderID=16, SC_CODE=500530, Date=2026-02-10
+Rows found: 4
