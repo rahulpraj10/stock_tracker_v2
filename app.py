@@ -325,6 +325,7 @@ def paper_trading():
                   else:
                       flash("Invalid Stock Code. Please verify.", "error")
 
+
     # Fetch user's orders
     orders = []
     try:
@@ -335,9 +336,6 @@ def paper_trading():
         else:
              cur.execute('SELECT * FROM orders WHERE username = ? ORDER BY created_at DESC', (current_user.id,))
              
-        # Convert to dicts if needed (RealDictCursor does this for Postgres, Row factory for SQLite)
-        # If SQLite Row factory is set, fetchall returns row objects behaving like dicts.
-        # If Postgres RealDictCursor, returns dicts.
         orders = cur.fetchall()
         cur.close()
     except Exception as e:
@@ -345,7 +343,66 @@ def paper_trading():
     finally:
         conn_orders.close()
 
-    return render_template('paper_trading.html', orders=orders)
+    # Calculate Portfolio Summary
+    total_invested = 0.0
+    total_current_value = 0.0
+    
+    stock_conn = get_stock_db_connection()
+    if orders and stock_conn:
+        try:
+            for order in orders:
+                try:
+                    # Optimized: Could fetch all needed stocks in one go, but this is fine for now
+                    # We need the price on order_date and current price
+                    # Query the main 'stocks' table for the specific SCRIP CODE
+                    # usage of "SCRIP CODE" (quoted) to handle space in column name
+                    query = 'SELECT Close, Date FROM stocks WHERE "SCRIP CODE" = ? ORDER BY Date ASC'
+                    stock_data = stock_conn.execute(query, (order['sc_code'],)).fetchall()
+                    
+
+                    if stock_data:
+                        # Find Purchase Price
+                        purchase_price = 0.0
+                        order_date_str = order['order_date']
+                        
+                        # Find first date >= order_date
+                        # Since list is sorted by date ASC, we can iterate
+                        for row in stock_data:
+                            if row['Date'] >= order_date_str:
+                                purchase_price = float(row['Close'])
+                                break
+                        
+                        # If date is in future relative to data, use last available?
+                        # Or if we didn't find any date >= order_date (unlikely if order validated)
+                        if purchase_price == 0.0 and stock_data:
+                             # Fallback to last close if order date is very recent/future
+                             purchase_price = float(stock_data[-1]['Close'])
+
+                        current_price = float(stock_data[-1]['Close'])
+                        
+                        total_invested += purchase_price * order['quantity']
+                        total_current_value += current_price * order['quantity']
+                
+                except Exception as e:
+                    print(f"Error calculating stats for order {order['id']}: {e}")
+        except Exception as e:
+             print(f"Error in portfolio calc: {e}")
+        finally:
+            stock_conn.close()
+    elif stock_conn:
+        stock_conn.close()
+
+    total_pl = total_current_value - total_invested
+    total_pl_pct = (total_pl / total_invested * 100) if total_invested > 0 else 0.0
+
+    return render_template('paper_trading.html', 
+                           orders=orders,
+                           summary={
+                               'total_invested': total_invested,
+                               'total_current_value': total_current_value,
+                               'total_pl': total_pl,
+                               'total_pl_pct': total_pl_pct
+                           })
 
 @app.route('/delete_order/<int:order_id>', methods=['POST'])
 @login_required
@@ -420,10 +477,11 @@ def order_chart_data(order_id):
                         f.write(f"Chart Request: OrderID={order_id}, SC_CODE={sc_code}, Date={order_date}\n")
     
                     # Fetch stock data from order_date to present
+                    # Use "SCRIP CODE" as per DB schema
                     query = """
                         SELECT Date, "CLOSE" 
                         FROM stocks 
-                        WHERE SC_CODE = ? AND Date >= ? 
+                        WHERE "SCRIP CODE" = ? AND Date >= ? 
                         ORDER BY Date ASC
                     """
                     # Stock DB is always SQLite, use ?
@@ -452,16 +510,17 @@ def order_chart_data(order_id):
                         # Let's return both per unit prices for clarity.
                         
                         try:
-                             purchase_price = float(rows[0]['CLOSE'])
-                             current_price = float(rows[-1]['CLOSE'])
+                             # Calculate per-unit prices first for % change
+                             unit_purchase_price = float(rows[0]['CLOSE'])
+                             unit_current_price = float(rows[-1]['CLOSE'])
                              
-                             pct_change = ((current_price - purchase_price) / purchase_price) * 100 if purchase_price != 0 else 0
+                             pct_change = ((unit_current_price - unit_purchase_price) / unit_purchase_price) * 100 if unit_purchase_price != 0 else 0
                              
                              data["stats"] = {
-                                 "purchase_price": purchase_price,
-                                 "current_price": current_price,
+                                 "purchase_price": unit_purchase_price * quantity,
+                                 "current_price": unit_current_price * quantity,
                                  "pct_change": round(pct_change, 2),
-                                 "profit_loss": (current_price - purchase_price) * quantity
+                                 "profit_loss": (unit_current_price - unit_purchase_price) * quantity
                              }
                         except Exception as e:
                             print(f"Error calculating stats: {e}")

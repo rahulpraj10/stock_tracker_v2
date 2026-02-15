@@ -113,6 +113,15 @@
             color: var(--text-main);
         }
 
+        .filter-section {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+            margin-bottom: 24px;
+        }
+
         /* Form Styles */
         .filter-form {
             display: grid;
@@ -319,7 +328,23 @@
         </div>
 
         {% if current_user.is_authenticated %}
-        <div>
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <div class="user-avatar" style="
+                width: 32px;
+                height: 32px;
+                background-color: #dbeafe;
+                color: var(--primary-color);
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-weight: 600;
+                font-size: 14px;
+                text-transform: uppercase;
+                user-select: none;
+            " title="Logged in as {{ current_user.id }}">
+                {{ current_user.id[0] }}
+            </div>
             <a href="{{ url_for('logout') }}" class="btn btn-outline"
                 style="padding: 8px 16px; font-size: 13px;">Logout</a>
         </div>

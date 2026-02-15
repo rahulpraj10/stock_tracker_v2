@@ -5,6 +5,11 @@
     .paper-trading-container {
         display: flex;
         gap: 24px;
+        background-color: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 24px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
     }
 
     .left-panel {
@@ -12,14 +17,15 @@
         display: flex;
         flex-direction: column;
         gap: 24px;
+        min-width: 300px;
     }
 
     .right-panel {
         flex: 2;
-        background-color: var(--bg-color);
-        border: 1px solid var(--border-color);
-        border-radius: 6px;
-        padding: 16px;
+        /* background-color: var(--bg-color); Removed to blend with container */
+        /* border: 1px solid var(--border-color); Removed */
+        /* border-radius: 6px; Removed */
+        /* padding: 16px; Removed/Adjusted */
         min-height: 400px;
     }
 
@@ -27,26 +33,29 @@
         display: flex;
         flex-direction: column;
         gap: 8px;
-        height: 70vh;
-        /* Changed from max-height: 400px to 70vh as requested */
+        height: 60vh;
+        /* Slightly reduced to fit better */
         overflow-y: auto;
+        padding-right: 4px;
+        /* for scrollbar */
     }
 
     .order-card {
         background-color: var(--bg-color);
+        /* Contrast against white card */
         border: 1px solid var(--border-color);
         border-radius: 6px;
         padding: 12px;
         cursor: pointer;
-        transition: border-color 0.2s;
+        transition: all 0.2s;
         display: flex;
-        /* Changed to flex for row layout */
         justify-content: space-between;
         align-items: center;
     }
 
     .order-card:hover {
-        border-color: var(--accent-color);
+        border-color: var(--primary-color);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
     }
 
     .order-info {
@@ -56,7 +65,8 @@
     .order-card h4 {
         margin: 0 0 4px 0;
         font-size: 14px;
-        color: var(--text-primary);
+        color: var(--text-main);
+        font-weight: 600;
     }
 
     .order-card p {
@@ -68,20 +78,48 @@
     .delete-btn {
         background: none;
         border: none;
-        color: #ff4d4f;
+        color: #ef4444;
         cursor: pointer;
         font-size: 1.2rem;
         padding: 4px 8px;
         border-radius: 4px;
         transition: background 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
 
     .delete-btn:hover {
-        background-color: rgba(255, 77, 79, 0.1);
+        background-color: #fee2e2;
+    }
+
+    /* Responsive Design */
+    @media (max-width: 1024px) {
+        .paper-trading-container {
+            flex-direction: column;
+        }
+
+        .left-panel,
+        .right-panel {
+            width: 100%;
+            min-width: 0;
+        }
+
+        .order-list {
+            height: 300px;
+            /* Fixed height on mobile */
+        }
+
+        .right-panel {
+            min-height: 350px;
+            border-top: 1px solid var(--border-color);
+            /* Separator on mobile */
+            padding-top: 24px;
+        }
     }
 </style>
 
-<div class="filter-section" style="margin-bottom: 24px;">
+<div class="filter-section">
     <h3 style="margin-bottom: 12px;">Place New Order</h3>
     <form method="POST" class="filter-form" style="display: flex; gap: 16px; align-items: flex-end;">
         <div class="form-group" style="flex: 1;">
@@ -100,6 +138,40 @@
     </form>
 </div>
 
+{% if summary %}
+<div
+    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;">
+    <div class="card"
+        style="margin-bottom: 0; padding: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+        <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 4px;">Total Invested</div>
+        <div style="font-size: 20px; font-weight: 600; color: var(--text-main);">₹{{
+            "%.2f"|format(summary.total_invested) }}</div>
+    </div>
+    <div class="card"
+        style="margin-bottom: 0; padding: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+        <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 4px;">Current Value</div>
+        <div style="font-size: 20px; font-weight: 600; color: var(--text-main);">₹{{
+            "%.2f"|format(summary.total_current_value) }}</div>
+    </div>
+    <div class="card"
+        style="margin-bottom: 0; padding: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+        <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 4px;">Total P/L</div>
+        <div
+            style="font-size: 20px; font-weight: 600; color: {% if summary.total_pl >= 0 %}#10b981{% else %}#ef4444{% endif %};">
+            {{ "+" if summary.total_pl >= 0 else "" }}₹{{ "%.2f"|format(summary.total_pl) }}
+        </div>
+    </div>
+    <div class="card"
+        style="margin-bottom: 0; padding: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+        <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 4px;">Total Return</div>
+        <div
+            style="font-size: 20px; font-weight: 600; color: {% if summary.total_pl_pct >= 0 %}#10b981{% else %}#ef4444{% endif %};">
+            {{ "+" if summary.total_pl_pct >= 0 else "" }}{{ "%.2f"|format(summary.total_pl_pct) }}%
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <div class="paper-trading-container">
     <div class="left-panel">
         <div class="filter-section" style="height: 100%; display: flex; flex-direction: column;">
@@ -114,9 +186,7 @@
                     </div>
                     <form action="{{ url_for('delete_order', order_id=order.id) }}" method="POST"
                         onsubmit="event.stopPropagation(); return confirm('Are you sure you want to delete this order?');">
-                        <button type="submit" class="delete-btn" title="Delete Order">
-                            &times;
-                        </button>
+                        <button type="submit" class="delete-btn" title="Delete Order">&times;</button>
                     </form>
                 </div>
                 {% endfor %}

@@ -63,8 +63,8 @@ def test_stats():
             if "stats" in data and data["stats"] is not None:
                 stats = data["stats"]
                 print("Stats Object Found:", flush=True)
-                print(f"  Purchase Price: {stats.get('purchase_price')}", flush=True)
-                print(f"  Current Price: {stats.get('current_price')}", flush=True)
+                print(f"  Purchase Value: {stats.get('purchase_price')}", flush=True)
+                print(f"  Current Value: {stats.get('current_price')}", flush=True)
                 print(f"  Change %: {stats.get('pct_change')}", flush=True)
                 print(f"  P/L: {stats.get('profit_loss')}", flush=True)
                 
