@@ -127,8 +127,37 @@
         </div>
     </div>
 
-    <div class="right-panel">
-        <canvas id="valueChart"></canvas>
+    <div class="right-panel" style="display: flex; flex-direction: column;">
+        <div style="flex: 1; min-height: 0;">
+            <canvas id="valueChart"></canvas>
+        </div>
+        <div id="stats-container" style="
+            margin-top: 16px; 
+            padding-top: 16px; 
+            border-top: 1px solid var(--border-color); 
+            display: flex; 
+            justify-content: space-around; 
+            align-items: center;
+            opacity: 0;
+            transition: opacity 0.3s;
+        ">
+            <div style="text-align: center;">
+                <div style="font-size: 12px; color: var(--text-secondary);">Purchase Price</div>
+                <div id="stat-purchase" style="font-size: 16px; font-weight: 600;">-</div>
+            </div>
+            <div style="text-align: center;">
+                <div style="font-size: 12px; color: var(--text-secondary);">Current Price</div>
+                <div id="stat-current" style="font-size: 16px; font-weight: 600;">-</div>
+            </div>
+            <div style="text-align: center;">
+                <div style="font-size: 12px; color: var(--text-secondary);">Change</div>
+                <div id="stat-change" style="font-size: 16px; font-weight: 600;">-</div>
+            </div>
+            <div style="text-align: center;">
+                <div style="font-size: 12px; color: var(--text-secondary);">Profit/Loss</div>
+                <div id="stat-pl" style="font-size: 16px; font-weight: 600;">-</div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -142,6 +171,7 @@
 
             const data = await response.json();
 
+            // Update Chart
             const ctx = document.getElementById('valueChart').getContext('2d');
 
             if (chartInstance) {
@@ -166,38 +196,40 @@
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {
-                        legend: {
-                            labels: {
-                                color: '#c9d1d9'
-                            }
-                        },
-                        title: {
-                            display: true,
-                            text: 'Value Over Time',
-                            color: '#c9d1d9'
-                        }
+                        legend: { labels: { color: '#6b7280' } },
+                        title: { display: true, text: 'Value Over Time', color: '#6b7280' }
                     },
                     scales: {
-                        x: {
-                            ticks: { color: '#8b949e' },
-                            grid: { color: '#30363d' }
-                        },
-                        y: {
-                            ticks: { color: '#8b949e' },
-                            grid: { color: '#30363d' },
-                            title: {
-                                display: true,
-                                text: 'Value (Qty * Close)',
-                                color: '#8b949e'
-                            }
-                        }
+                        x: { ticks: { color: '#9ca3af' }, grid: { color: '#f3f4f6' } },
+                        y: { ticks: { color: '#9ca3af' }, grid: { color: '#f3f4f6' } }
                     }
                 }
             });
 
+            // Update Stats
+            const statsContainer = document.getElementById('stats-container');
+            if (data.stats) {
+                document.getElementById('stat-purchase').textContent = '₹' + data.stats.purchase_price.toFixed(2);
+                document.getElementById('stat-current').textContent = '₹' + data.stats.current_price.toFixed(2);
+
+                const changeEl = document.getElementById('stat-change');
+                const changeVal = data.stats.pct_change;
+                changeEl.textContent = (changeVal >= 0 ? '+' : '') + changeVal.toFixed(2) + '%';
+                changeEl.style.color = changeVal >= 0 ? '#10b981' : '#ef4444'; // Green or Red
+
+                const plEl = document.getElementById('stat-pl');
+                const plVal = data.stats.profit_loss;
+                plEl.textContent = (plVal >= 0 ? '+' : '') + '₹' + plVal.toFixed(2);
+                plEl.style.color = plVal >= 0 ? '#10b981' : '#ef4444';
+
+                statsContainer.style.opacity = '1';
+            } else {
+                statsContainer.style.opacity = '0';
+            }
+
         } catch (error) {
             console.error('Error loading chart:', error);
-            alert('Failed to load chart data.11');
+            alert('Failed to load chart data.');
         }
     }
 </script>

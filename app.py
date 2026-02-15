@@ -441,6 +441,32 @@ def order_chart_data(order_id):
                         except:
                             close_val = 0.0
                         data["values"].append(close_val * quantity)
+                    
+                    # Calculate Stats
+                    if data["values"]:
+                        # database returns rows sorted by Date ASC
+                        # Purchase Price is the price on order_date (first record found)
+                        # But wait, data["values"] is (Price * Qty). Use the raw price for stats or the total value?
+                        # User asked for "purchase price, current price". Usually per unit.
+                        # But the chart shows "Investment Value".
+                        # Let's return both per unit prices for clarity.
+                        
+                        try:
+                             purchase_price = float(rows[0]['CLOSE'])
+                             current_price = float(rows[-1]['CLOSE'])
+                             
+                             pct_change = ((current_price - purchase_price) / purchase_price) * 100 if purchase_price != 0 else 0
+                             
+                             data["stats"] = {
+                                 "purchase_price": purchase_price,
+                                 "current_price": current_price,
+                                 "pct_change": round(pct_change, 2),
+                                 "profit_loss": (current_price - purchase_price) * quantity
+                             }
+                        except Exception as e:
+                            print(f"Error calculating stats: {e}")
+                            data["stats"] = None
+
                 except Exception as e:
                      print(f"Error fetching stock data: {e}")
                 finally:
