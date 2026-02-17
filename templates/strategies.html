@@ -92,8 +92,10 @@
 
 <div class="strategies-container">
     <div class="strategy-sidebar">
-        <button class="strategy-tab active" onclick="openStrategy(event, 'double-bottom')">Double Bottom
-            Indicator</button>
+        <!-- <button class="strategy-tab" onclick="openStrategy(event, 'double-bottom')">Double Bottom
+            Indicator</button> -->
+        <button class="strategy-tab active" onclick="openStrategy(event, 'double-bottom-v1')">Double Bottom Indicator
+            v1</button>
         <button class="strategy-tab" onclick="openStrategy(event, 'bullish-reversal')">Bullish Reversal</button>
         <button class="strategy-tab" onclick="openStrategy(event, 'multi-frame')">Multiple Frame growing</button>
         <button class="strategy-tab" onclick="openStrategy(event, 'min-5-day')">Minimum 5 day increase</button>
@@ -101,7 +103,7 @@
     </div>
 
     <div class="strategy-content-area">
-        <div id="double-bottom" class="strategy-pane active">
+        <!-- <div id="double-bottom" class="strategy-pane">
             <h2>Double Bottom Indicator</h2>
             <p style="color: var(--text-secondary); margin-bottom: 20px;">
                 Identify stocks forming a "W" pattern, indicating a potential bullish reversal.
@@ -187,6 +189,64 @@
             {% else %}
             <div class="empty-state">
                 <p>No stocks found matching the Double Bottom criteria with current parameters.</p>
+            </div>
+            {% endif %}
+            {% endif %}
+        </div> -->
+
+        <div id="double-bottom-v1" class="strategy-pane active">
+            <h2>Double Bottom Indicator v1</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 20px;">
+                Identify stocks forming a "W" pattern (Version 1 - Optimized).
+            </p>
+
+            <form method="GET" action="{{ url_for('strategies') }}" style="margin-bottom: 24px;">
+                <input type="hidden" name="strategy" value="double_bottom_v1">
+                <button type="submit" class="btn btn-primary">Find Patterns</button>
+            </form>
+
+            {% if strategy == 'double_bottom_v1' %}
+            {% if results %}
+            <div style="margin-bottom: 16px; font-weight: 500;">
+                Found {{ results|length }} stocks matching Double Bottom v1 pattern.
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>SC_CODE</th>
+                            <th>Stock Name</th>
+                            <th>Bottom 1</th>
+                            <th>Neckline</th>
+                            <th>Bottom 2 Date</th>
+                            <th>Bottom 2 Price</th>
+                            <th>Prominence</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for stock in results %}
+                        <tr>
+                            <td>{{ stock.SC_CODE }}</td>
+                            <td>{{ stock.SC_NAME }}</td>
+                            <td>
+                                <div>{{ stock.Bottom1_Price }}</div>
+                                <div style="font-size: 0.85em; color: var(--text-secondary);">{{ stock.Bottom1_Date }}
+                                </div>
+                            </td>
+                            <td>
+                                <div>{{ stock.Neckline_Price }}</div>
+                            </td>
+                            <td>{{ stock.Bottom2_Date }}</td>
+                            <td>{{ stock.Bottom2_Price }}</td>
+                            <td>{{ stock.Prominence_Pct }}%</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <p>No stocks found matching the Double Bottom v1 criteria.</p>
             </div>
             {% endif %}
             {% endif %}
@@ -348,8 +408,10 @@
             openStrategy({ currentTarget: document.querySelector("button[onclick*='min-5-day']") }, 'min-5-day');
         } else if (strategy === 'bullish_reversal') {
             openStrategy({ currentTarget: document.querySelector("button[onclick*='bullish-reversal']") }, 'bullish-reversal');
-        } else if (strategy === 'double_bottom') {
-            openStrategy({ currentTarget: document.querySelector("button[onclick*='double-bottom']") }, 'double-bottom');
+            // } else if (strategy === 'double_bottom') {
+            //     openStrategy({ currentTarget: document.querySelector("button[onclick*='double-bottom']") }, 'double-bottom');
+        } else if (strategy === 'double_bottom_v1') {
+            openStrategy({ currentTarget: document.querySelector("button[onclick*='double-bottom-v1']") }, 'double-bottom-v1');
         }
         // Add more conditions here as we implement other strategies
     };

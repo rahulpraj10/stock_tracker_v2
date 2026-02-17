@@ -8,6 +8,7 @@ from database import get_stock_db_connection, get_orders_db_connection
 from strategies.min_increase import get_min_increase_stocks
 from strategies.bullish_reversal import get_bullish_reversal_stocks
 from strategies.double_bottom import get_double_bottom_stocks
+from strategies.double_bottom_v1 import get_double_bottom_stocks
 
 # ... (Previous imports remain)
 
@@ -242,6 +243,17 @@ def strategies():
             lookback_days=params['lookback'], 
             peak_prominence_pct=params['prominence']
         )
+    elif selected_strategy == 'double_bottom_v1':
+        df_results = get_double_bottom_stocks()
+        if not df_results.empty:
+             # Convert Timestamp objects to strings if needed, but Jinja might handle them.
+             # Better to be safe for JSON serialization context if valid json needed, but this is template render.
+             # Check if we need to format dates. 
+             # The user's code returns numpy datetime64 or pandas Timestamp in the dict.
+             # Let's convert to dict records.
+             strategy_results = df_results.to_dict('records')
+        else:
+             strategy_results = []
 
     return render_template('strategies.html', 
                          strategy=selected_strategy, 
