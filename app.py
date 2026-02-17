@@ -554,15 +554,62 @@ def search_stocks():
         return jsonify([])
         
     try:
-        # Search for stock names containing the query string
-        # Limit results to 10
-        sql = 'SELECT DISTINCT "SC NAME", "SCRIP CODE" FROM stocks WHERE "SC NAME" LIKE ? LIMIT 10'
-        cursor = conn.execute(sql, ('%' + query_str + '%',))
-        results = [{'sc_name': row['SC NAME'], 'sc_code': row['SCRIP CODE']} for row in cursor.fetchall()]
+        cursor = conn.cursor()
+        
+        # 1. Get the latest date available in the DB
+        cursor.execute("SELECT MAX(Date) FROM stocks")
+        latest_date_row = cursor.fetchone()
+        latest_date = latest_date_row[0] if latest_date_row else None
+        
+        if not latest_date:
+            return jsonify([])
+
+        # 2. Search for stock names containing the query string on the latest date
+        # We try both "SC_NAME" and "SC NAME" just in case, but rely on previous findings
+        # Actually, let's just stick to what likely works: SC_NAME (from line 141) or "SC NAME" (from line 483 context)
+        # To be safe, let's use the one consistent with the rest of app.py index route: SC_NAME
+        
+        sql = """
+            SELECT SC_NAME, "SCRIP CODE", "CLOSE" 
+            FROM stocks 
+            WHERE Date = ? AND SC_NAME LIKE ? 
+            LIMIT 10
+        """
+        cursor.execute(sql, (latest_date, '%' + query_str + '%'))
+        
+        results = [
+            {
+                'sc_name': row['SC_NAME'], 
+                'sc_code': row['SCRIP CODE'],
+                'close': row['CLOSE']
+            } 
+            for row in cursor.fetchall()
+        ]
         return jsonify(results)
     except Exception as e:
         print(f"Error searching stocks: {e}")
-        return jsonify([])
+        # Fallback query if SC_NAME column name issue
+        try:
+             # Try with "SC NAME" if SC_NAME fails
+             sql_fallback = """
+                SELECT "SC NAME", "SCRIP CODE", "CLOSE" 
+                FROM stocks 
+                WHERE Date = ? AND "SC NAME" LIKE ? 
+                LIMIT 10
+            """
+             cursor.execute(sql_fallback, (latest_date, '%' + query_str + '%'))
+             results = [
+                {
+                    'sc_name': row['SC NAME'], 
+                    'sc_code': row['SCRIP CODE'],
+                    'close': row['CLOSE']
+                } 
+                for row in cursor.fetchall()
+            ]
+             return jsonify(results)
+        except Exception as e2:
+             print(f"Error searching stocks fallback: {e2}")
+             return jsonify([])
     finally:
         conn.close()
 

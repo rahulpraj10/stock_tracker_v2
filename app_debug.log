@@ -330,3 +330,49 @@ Chart Request: OrderID=3, SC_CODE=532540, Date=2025-12-30
 Rows found: 32
 Chart Request: OrderID=16, SC_CODE=500530, Date=2026-02-10
 Rows found: 4
+Chart Request: OrderID=16, SC_CODE=500530, Date=2026-02-10
+Rows found: 4
+Chart Request: OrderID=12, SC_CODE=500180, Date=2026-02-02
+Rows found: 10
+Chart Request: OrderID=11, SC_CODE=524661, Date=2025-11-10
+Rows found: 60
+Chart Request: OrderID=10, SC_CODE=532540, Date=2026-02-02
+Rows found: 10
+Chart Request: OrderID=16, SC_CODE=500530, Date=2026-02-10
+Rows found: 4
+Chart Request: OrderID=12, SC_CODE=500180, Date=2026-02-02
+Rows found: 10
+Chart Request: OrderID=11, SC_CODE=524661, Date=2025-11-10
+Rows found: 60
+Chart Request: OrderID=10, SC_CODE=532540, Date=2026-02-02
+Rows found: 10
+Chart Request: OrderID=16, SC_CODE=500530, Date=2026-02-10
+Rows found: 4
+Chart Request: OrderID=12, SC_CODE=500180, Date=2026-02-02
+Rows found: 10
+Chart Request: OrderID=11, SC_CODE=524661, Date=2025-11-10
+Rows found: 60
+Chart Request: OrderID=10, SC_CODE=532540, Date=2026-02-02
+Rows found: 10
+Chart Request: OrderID=16, SC_CODE=500530, Date=2026-02-10
+Rows found: 6
+Chart Request: OrderID=12, SC_CODE=500180, Date=2026-02-02
+Rows found: 12
+Chart Request: OrderID=11, SC_CODE=524661, Date=2025-11-10
+Rows found: 62
+Chart Request: OrderID=10, SC_CODE=532540, Date=2026-02-02
+Rows found: 12
+Chart Request: OrderID=11, SC_CODE=524661, Date=2025-11-10
+Rows found: 62
+Chart Request: OrderID=12, SC_CODE=500180, Date=2026-02-02
+Rows found: 12
+Chart Request: OrderID=16, SC_CODE=500530, Date=2026-02-10
+Rows found: 6
+Chart Request: OrderID=12, SC_CODE=500180, Date=2026-02-02
+Rows found: 12
+Chart Request: OrderID=11, SC_CODE=524661, Date=2025-11-10
+Rows found: 62
+Chart Request: OrderID=10, SC_CODE=532540, Date=2026-02-02
+Rows found: 12
+Chart Request: OrderID=20, SC_CODE=532540, Date=2026-02-16
+Rows found: 2

@@ -30,8 +30,8 @@ def test_autocomplete():
             print(f"Results found: {len(data)}", flush=True)
             if len(data) > 0:
                 print("First result:", data[0], flush=True)
-                if 'sc_name' in data[0] and 'sc_code' in data[0]:
-                    print("SUCCESS: Result has correct keys.", flush=True)
+                if 'sc_name' in data[0] and 'sc_code' in data[0] and 'close' in data[0]:
+                    print("SUCCESS: Result has sc_name, sc_code, and close.", flush=True)
                 else:
                     print("FAILURE: Result missing keys.", flush=True)
             else:

@@ -183,7 +183,8 @@
                 if (results.length > 0) {
                     results.forEach(stock => {
                         const li = document.createElement('li');
-                        li.textContent = `${stock.sc_name} (${stock.sc_code})`;
+                        // Display: Name | Close Price
+                        li.textContent = `${stock.sc_name} | ${parseFloat(stock.close).toFixed(2)}`;
                         li.style.padding = '8px 12px';
                         li.style.cursor = 'pointer';
                         li.style.borderBottom = '1px solid #f3f4f6';
