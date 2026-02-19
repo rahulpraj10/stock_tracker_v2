@@ -376,3 +376,5 @@ Chart Request: OrderID=10, SC_CODE=532540, Date=2026-02-02
 Rows found: 12
 Chart Request: OrderID=20, SC_CODE=532540, Date=2026-02-16
 Rows found: 2
+Chart Request: OrderID=21, SC_CODE=500483, Date=2026-02-03
+Rows found: 11
