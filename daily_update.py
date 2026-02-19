@@ -1,4 +1,6 @@
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 import pandas as pd
 import zipfile
 import io
@@ -49,7 +51,7 @@ def download_bse_zip(current_date):
 
 def download_samco_bhavcopy(current_date):
     """
-    Downloads CSV from Samco via POST request.
+    Downloads CSV from Samco via POST request with retry logic.
     URL: https://www.samco.in/bse_nse_mcx/getBhavcopy
     """
     url = "https://www.samco.in/bse_nse_mcx/getBhavcopy"
@@ -68,8 +70,21 @@ def download_samco_bhavcopy(current_date):
     
     print(f"Requesting Samco Bhavcopy for date: {date_str}")
     
+    # Configure retry strategy
+    retry_strategy = Retry(
+        total=5, # Total number of retries
+        backoff_factor=1, # A backoff factor to apply between attempts after the second try
+        status_forcelist=[429, 500, 502, 503, 504], # HTTP status codes to retry on
+        allowed_methods=["HEAD", "GET", "OPTIONS", "POST"] # Allow POST retries
+    )
+    adapter = HTTPAdapter(max_retries=retry_strategy)
+    http = requests.Session()
+    http.mount("https://", adapter)
+    http.mount("http://", adapter)
+
     try:
-        response = requests.post(url, data=payload, headers=headers)
+        # Initial POST request to get links
+        response = http.post(url, data=payload, headers=headers, timeout=60) # 60s timeout
         response.raise_for_status()
         
         soup = BeautifulSoup(response.content, 'lxml')
@@ -78,7 +93,7 @@ def download_samco_bhavcopy(current_date):
         downloaded_files = []
         
         if not links:
-            print("No CSV links found in Samco response.")
+            print("No CSV links found in Samco response. Warning: Might be a holiday or data not yet available.")
             return []
 
         for link in links:
@@ -91,7 +106,8 @@ def download_samco_bhavcopy(current_date):
                 
                 print(f"Found CSV link: {href}, downloading as {file_name}")
                 
-                csv_response = requests.get(href, headers=headers)
+                # Download the CSV file (using the same session for retries)
+                csv_response = http.get(href, headers=headers, timeout=120) # Longer timeout for download
                 csv_response.raise_for_status()
                 
                 file_path = os.path.join(STOCK_DATA_DIR, file_name)
@@ -104,7 +120,7 @@ def download_samco_bhavcopy(current_date):
         return downloaded_files
 
     except requests.exceptions.RequestException as e:
-        print(f"Error communicating with Samco: {e}")
+        print(f"Error communicating with Samco after retries: {e}")
         return []
 
 def merge_and_accumulate(bse_file_name, samco_files, current_date):
