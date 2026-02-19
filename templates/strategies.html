@@ -41,17 +41,16 @@
         box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
     }
 
-    .strategy-content-area {
+
+
+    .strategy-pane {
+        display: none;
         flex: 1;
         background: var(--card-bg);
         border-radius: 12px;
         border: 1px solid var(--border-color);
         padding: 24px;
         box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-    }
-
-    .strategy-pane {
-        display: none;
     }
 
     .strategy-pane.active {
@@ -71,7 +70,6 @@
         }
     }
 
-    /* Mobile Responsive */
     @media (max-width: 768px) {
         .strategies-container {
             flex-direction: column;
@@ -81,11 +79,34 @@
             flex: none;
             overflow-x: auto;
             flex-direction: row;
-            padding-bottom: 8px;
+            padding-bottom: 0;
+            margin-bottom: 16px;
+            gap: 8px;
+            /* Hide scrollbar for cleaner look */
+            -ms-overflow-style: none;
+            /* IE and Edge */
+            scrollbar-width: none;
+            /* Firefox */
+        }
+
+        .strategy-sidebar::-webkit-scrollbar {
+            display: none;
         }
 
         .strategy-tab {
             white-space: nowrap;
+            background: var(--card-bg);
+            /* Add background to stand out against page bg */
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            /* Pill shape for mobile tabs */
+            padding: 8px 16px;
+        }
+
+        .strategy-tab.active {
+            background-color: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
         }
     }
 </style>
@@ -102,8 +123,8 @@
         <button class="strategy-tab" onclick="openStrategy(event, 'strategy-5')">Strategy 5</button>
     </div>
 
-    <div class="strategy-content-area">
-        <!-- <div id="double-bottom" class="strategy-pane">
+
+    <!-- <div id="double-bottom" class="strategy-pane">
             <h2>Double Bottom Indicator</h2>
             <p style="color: var(--text-secondary); margin-bottom: 20px;">
                 Identify stocks forming a "W" pattern, indicating a potential bullish reversal.
@@ -147,230 +168,247 @@
                 </div>
             </form>
 
-            {% if strategy == 'double_bottom' %}
-            {% if results %}
-            <div style="margin-bottom: 16px; font-weight: 500;">
-                Found {{ results|length }} stocks matching Double Bottom pattern.
-            </div>
-            <div class="table-container">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>SC_CODE</th>
-                            <th>Stock Name</th>
-                            <th>Bottom 1</th>
-                            <th>Neckline</th>
-                            <th>Bottom 2 Date</th>
-                            <th>Bottom 2 Price</th>
-                            <th>Prominence</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for stock in results %}
-                        <tr>
-                            <td>{{ stock.SC_CODE }}</td>
-                            <td>{{ stock.SC_NAME }}</td>
-                            <td>
-                                <div>{{ stock.Bottom1_Price }}</div>
-                                <div style="font-size: 0.85em; color: var(--text-secondary);">{{ stock.Bottom1_Date }}
-                                </div>
-                            </td>
-                            <td>
-                                <div>{{ stock.Neckline_Price }}</div>
-                            </td>
-                            <td>{{ stock.Bottom2_Date }}</td>
-                            <td>{{ stock.Bottom2_Price }}</td>
-                            <td>{{ stock.Prominence_Pct }}%</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            {% else %}
-            <div class="empty-state">
-                <p>No stocks found matching the Double Bottom criteria with current parameters.</p>
-            </div>
-            {% endif %}
-            {% endif %}
-        </div> -->
-
-        <div id="double-bottom-v1" class="strategy-pane active">
-            <h2>Double Bottom Indicator v1</h2>
-            <p style="color: var(--text-secondary); margin-bottom: 20px;">
-                Identify stocks forming a "W" pattern (Version 1 - Optimized).
-            </p>
-
-            <form method="GET" action="{{ url_for('strategies') }}" style="margin-bottom: 24px;">
-                <input type="hidden" name="strategy" value="double_bottom_v1">
-                <button type="submit" class="btn btn-primary">Find Patterns</button>
-            </form>
-
-            {% if strategy == 'double_bottom_v1' %}
-            {% if results %}
-            <div style="margin-bottom: 16px; font-weight: 500;">
-                Found {{ results|length }} stocks matching Double Bottom v1 pattern.
-            </div>
-            <div class="table-container">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>SC_CODE</th>
-                            <th>Stock Name</th>
-                            <th>Bottom 1</th>
-                            <th>Neckline</th>
-                            <th>Bottom 2 Date</th>
-                            <th>Bottom 2 Price</th>
-                            <th>Prominence</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for stock in results %}
-                        <tr>
-                            <td>{{ stock.SC_CODE }}</td>
-                            <td>{{ stock.SC_NAME }}</td>
-                            <td>
-                                <div>{{ stock.Bottom1_Price }}</div>
-                                <div style="font-size: 0.85em; color: var(--text-secondary);">{{ stock.Bottom1_Date }}
-                                </div>
-                            </td>
-                            <td>
-                                <div>{{ stock.Neckline_Price }}</div>
-                            </td>
-                            <td>{{ stock.Bottom2_Date }}</td>
-                            <td>{{ stock.Bottom2_Price }}</td>
-                            <td>{{ stock.Prominence_Pct }}%</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            {% else %}
-            <div class="empty-state">
-                <p>No stocks found matching the Double Bottom v1 criteria.</p>
-            </div>
-            {% endif %}
-            {% endif %}
-        </div>
-
-        <div id="bullish-reversal" class="strategy-pane">
-            <h2>Bullish Reversal</h2>
-            <p style="color: var(--text-secondary); margin-bottom: 20px;">
-                Identify stocks that are reversing from a downtrend with high volume and delivery.<br>
-                <strong>Criteria:</strong> Price Increase today, 3-day decline prior, Volume > 5-day Avg, Delivery >
-                50%.
-            </p>
-
-            <form method="GET" action="{{ url_for('strategies') }}" style="margin-bottom: 24px;">
-                <input type="hidden" name="strategy" value="bullish_reversal">
-                <button type="submit" class="btn btn-primary">Find Reversal Stocks</button>
-            </form>
-
-            {% if strategy == 'bullish_reversal' %}
-            {% if results %}
-            <div style="margin-bottom: 16px; font-weight: 500;">
-                Found {{ results|length }} stocks matching Bullish Reversal criteria.
-            </div>
-            <div class="table-container">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>SC_CODE</th>
-                            <th>Stock Name</th>
-                            <th>Date</th>
-                            <th>Close</th>
-                            <th>Volume</th>
-                            <th>Delv %</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for stock in results %}
-                        <tr>
-                            <td>{{ stock.SC_CODE }}</td>
-                            <td>{{ stock.SC_NAME }}</td>
-                            <td>{{ stock.Date }}</td>
-                            <td>{{ stock.Close }}</td>
-                            <td>{{ stock.Volume }}</td>
-                            <td>{{ stock.Delv_Per }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            {% else %}
-            <div class="empty-state">
-                <p>No stocks found matching the Bullish Reversal criteria.</p>
-            </div>
-            {% endif %}
-            {% endif %}
-        </div>
-
-        <div id="multi-frame" class="strategy-pane">
-            <h2>Multiple Frame growing</h2>
-            <p style="color: var(--text-secondary);">Strategy logic and results for Multiple Frame growing will appear
-                here.</p>
-        </div>
-
-        <div id="min-5-day" class="strategy-pane">
-            <h2>Minimum N Day Increase</h2>
-            <p style="color: var(--text-secondary); margin-bottom: 20px;">
-                Identify stocks that have seen a consecutive increase in daily volume for the last specified number of
-                days.
-            </p>
-
-            <form method="GET" action="{{ url_for('strategies') }}" class="filter-form"
-                style="margin-bottom: 24px; align-items: end;">
-                <input type="hidden" name="strategy" value="min_increase">
-
-                <div class="form-group">
-                    <label for="days">Consecutive Days (N)</label>
-                    <input type="number" id="days" name="days" value="{{ days|default(5) }}" min="2" max="10" required
-                        style="width: 100px;">
-                </div>
-
-                <button type="submit" class="btn btn-primary" onclick="openStrategy(event, 'min-5-day')">Apply
-                    Strategy</button>
-            </form>
-
-            {% if strategy == 'min_increase' %}
-            {% if results %}
-            <div style="margin-bottom: 16px; font-weight: 500;">
-                Found {{ results|length }} stocks with strictly increasing volume for last {{ days }} days.
-            </div>
-
-            <div class="table-container">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>SC_CODE</th>
-                            <th>Stock Name</th>
-                            <th>Recent Volumes (Oldest &rarr; Newest)</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for stock in results %}
-                        <tr>
-                            <td>{{ stock.SC_CODE }}</td>
-                            <td>{{ stock.SC_NAME }}</td>
-                            <td style="font-family: monospace;">{{ stock.Volumes | join(' &rarr; ') }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            {% else %}
-            <div class="empty-state">
-                <p>No stocks found matching the criteria for {{ days }} consecutive days of volume increase.</p>
-            </div>
-            {% endif %}
-            {% endif %}
-        </div>
-
-        <div id="strategy-5" class="strategy-pane">
-            <h2>Strategy 5</h2>
-            <p style="color: var(--text-secondary);">Strategy logic and results for Strategy 5 will appear here.</p>
-        </div>
+            <!-- Cached Results -->
+    {% set db_cache = cached_data.get('double_bottom') %}
+    {% if db_cache and db_cache.data %}
+    <div style="margin-bottom: 16px; font-weight: 500;">
+        Found {{ db_cache.data|length }} stocks matching Double Bottom pattern.
     </div>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>SC_CODE</th>
+                    <th>Stock Name</th>
+                    <th>Bottom 1</th>
+                    <th>Neckline</th>
+                    <th>Bottom 2 Date</th>
+                    <th>Bottom 2 Price</th>
+                    <th>Prominence</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for stock in db_cache.data %}
+                <tr>
+                    <td>{{ stock.SC_CODE }}</td>
+                    <td>{{ stock.SC_NAME }}</td>
+                    <td>
+                        <div>{{ stock.Bottom1_Price }}</div>
+                        <div style="font-size: 0.85em; color: var(--text-secondary);">{{ stock.Bottom1_Date }}
+                        </div>
+                    </td>
+                    <td>
+                        <div>{{ stock.Neckline_Price }}</div>
+                    </td>
+                    <td>{{ stock.Bottom2_Date }}</td>
+                    <td>{{ stock.Bottom2_Price }}</td>
+                    <td>{{ stock.Prominence_Pct }}%</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% elif db_cache is not none %}
+    <div class="empty-state">
+        <p>No stocks found matching the Double Bottom criteria with cached parameters.</p>
+    </div>
+    {% elif strategy == 'double_bottom' %}
+    <div class="empty-state">
+        <p>No stocks found matching the Double Bottom criteria with current parameters.</p>
+    </div>
+    {% endif %}
+<div id="double-bottom-v1" class="strategy-pane active">
+    <h2>Double Bottom Indicator v1</h2>
+    <p style="color: var(--text-secondary); margin-bottom: 20px;">
+        Identify stocks forming a "W" pattern (Version 1 - Optimized).
+    </p>
+
+    <form method="GET" action="{{ url_for('strategies') }}" style="margin-bottom: 24px;">
+        <input type="hidden" name="strategy" value="double_bottom_v1">
+        <button type="submit" class="btn btn-primary">Find Patterns</button>
+    </form>
+
+    <!-- Cached Results -->
+    {% set v1_cache = cached_data.get('double_bottom_v1') %}
+    {% if v1_cache and v1_cache.data %}
+    <div style="margin-bottom: 16px; font-weight: 500;">
+        Found {{ v1_cache.data|length }} stocks matching Double Bottom v1 pattern.
+    </div>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>SC_CODE</th>
+                    <th>Stock Name</th>
+                    <th>Bottom 1</th>
+                    <th>Neckline</th>
+                    <th>Bottom 2 Date</th>
+                    <th>Bottom 2 Price</th>
+                    <th>Prominence</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for stock in v1_cache.data %}
+                <tr>
+                    <td>{{ stock.SC_CODE }}</td>
+                    <td>{{ stock.SC_NAME }}</td>
+                    <td>
+                        <div>{{ stock.Bottom1_Price }}</div>
+                        <div style="font-size: 0.85em; color: var(--text-secondary);">{{ stock.Bottom1_Date }}
+                        </div>
+                    </td>
+                    <td>
+                        <div>{{ stock.Neckline_Price }}</div>
+                    </td>
+                    <td>{{ stock.Bottom2_Date }}</td>
+                    <td>{{ stock.Bottom2_Price }}</td>
+                    <td>{{ stock.Prominence_Pct }}%</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% elif v1_cache is not none %}
+    <div class="empty-state">
+        <p>No stocks found matching the Double Bottom v1 criteria.</p>
+    </div>
+    {% elif strategy == 'double_bottom_v1' %}
+    <div class="empty-state">
+        <p>No stocks found matching the Double Bottom v1 criteria.</p>
+    </div>
+    {% endif %}
 </div>
+
+<div id="bullish-reversal" class="strategy-pane">
+    <h2>Bullish Reversal</h2>
+    <p style="color: var(--text-secondary); margin-bottom: 20px;">
+        Identify stocks that are reversing from a downtrend with high volume and delivery.<br>
+        <strong>Criteria:</strong> Price Increase today, 3-day decline prior, Volume > 5-day Avg, Delivery >
+        50%.
+    </p>
+
+    <form method="GET" action="{{ url_for('strategies') }}" style="margin-bottom: 24px;">
+        <input type="hidden" name="strategy" value="bullish_reversal">
+        <button type="submit" class="btn btn-primary">Find Reversal Stocks</button>
+    </form>
+
+    <!-- Cached Results -->
+    {% set reversal_cache = cached_data.get('bullish_reversal') %}
+    {% if reversal_cache and reversal_cache.data %}
+    <div style="margin-bottom: 16px; font-weight: 500;">
+        Found {{ reversal_cache.data|length }} stocks matching Bullish Reversal criteria.
+    </div>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>SC_CODE</th>
+                    <th>Stock Name</th>
+                    <th>Date</th>
+                    <th>Close</th>
+                    <th>Volume</th>
+                    <th>Delv %</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for stock in reversal_cache.data %}
+                <tr>
+                    <td>{{ stock.SC_CODE }}</td>
+                    <td>{{ stock.SC_NAME }}</td>
+                    <td>{{ stock.Date }}</td>
+                    <td>{{ stock.Close }}</td>
+                    <td>{{ stock.Volume }}</td>
+                    <td>{{ stock.Delv_Per }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% elif reversal_cache is not none %}
+    <div class="empty-state">
+        <p>No stocks found matching the Bullish Reversal criteria.</p>
+    </div>
+    {% elif strategy == 'bullish_reversal' %}
+    <div class="empty-state">
+        <p>No stocks found matching the Bullish Reversal criteria.</p>
+    </div>
+    {% endif %}
+</div>
+
+<div id="multi-frame" class="strategy-pane">
+    <h2>Multiple Frame growing</h2>
+    <p style="color: var(--text-secondary);">Strategy logic and results for Multiple Frame growing will appear
+        here.</p>
+</div>
+
+<div id="min-5-day" class="strategy-pane">
+    <h2>Minimum N Day Increase</h2>
+    <p style="color: var(--text-secondary); margin-bottom: 20px;">
+        Identify stocks that have seen a consecutive increase in daily volume for the last specified number of
+        days.
+    </p>
+
+    <form method="GET" action="{{ url_for('strategies') }}" class="filter-form"
+        style="margin-bottom: 24px; align-items: end;">
+        <input type="hidden" name="strategy" value="min_increase">
+
+        <div class="form-group">
+            <label for="days">Consecutive Days (N)</label>
+            <input type="number" id="days" name="days" value="{{ days|default(5) }}" min="2" max="10" required
+                style="width: 100px;">
+        </div>
+
+        <button type="submit" class="btn btn-primary" onclick="openStrategy(event, 'min-5-day')">Apply
+            Strategy</button>
+    </form>
+
+    <!-- Cached Results -->
+    {% set min_inc_cache = cached_data.get('min_increase') %}
+    {% if min_inc_cache and min_inc_cache.data %}
+    <div style="margin-bottom: 16px; font-weight: 500;">
+        Found {{ min_inc_cache.data|length }} stocks with strictly increasing volume for last {{
+        min_inc_cache.params.days }} days.
+    </div>
+
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>SC_CODE</th>
+                    <th>Stock Name</th>
+                    <th>Recent Volumes (Oldest &rarr; Newest)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for stock in min_inc_cache.data %}
+                <tr>
+                    <td>{{ stock.SC_CODE }}</td>
+                    <td>{{ stock.SC_NAME }}</td>
+                    <td style="font-family: monospace;">{{ stock.Volumes | join(' &rarr; ') }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% elif min_inc_cache is not none %}
+    <div class="empty-state">
+        <p>No stocks found matching the criteria for {{ min_inc_cache.params.days }} consecutive days of volume
+            increase.</p>
+    </div>
+    {% elif strategy == 'min_increase' %}
+    <div class="empty-state">
+        <p>No stocks found matching the criteria for {{ params.days }} consecutive days of volume increase.</p>
+    </div>
+    {% endif %}
+</div>
+
+<div id="strategy-5" class="strategy-pane">
+    <h2>Strategy 5</h2>
+    <p style="color: var(--text-secondary);">Strategy logic and results for Strategy 5 will appear here.</p>
+</div>
+</div> -->
+
+
 
 <script>
     function openStrategy(evt, strategyName) {

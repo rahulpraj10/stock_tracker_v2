@@ -8,8 +8,11 @@ from database import get_stock_db_connection, get_orders_db_connection
 from strategies.min_increase import get_min_increase_stocks
 from strategies.bullish_reversal import get_bullish_reversal_stocks
 from strategies.double_bottom import get_double_bottom_stocks
-from strategies.double_bottom_v1 import get_double_bottom_stocks
+from strategies.double_bottom_v1 import get_double_bottom_stocks as get_double_bottom_v1_stocks
 
+# Global Strategy Cache (In-Memory)
+# Structure: { user_id: { strategy_name: { 'params': {...}, 'data': [...] } } }
+STRATEGY_CACHE = {}
 # ... (Previous imports remain)
 
 # ... (Previous code remains)
@@ -211,7 +214,11 @@ def index():
 @login_required
 def strategies():
     selected_strategy = request.args.get('strategy')
-    strategy_results = []
+    
+    # Initialize cache for user if not exists
+    user_id = current_user.id
+    if user_id not in STRATEGY_CACHE:
+        STRATEGY_CACHE[user_id] = {}
     
     # Default parameters for strategies
     params = {
@@ -231,33 +238,61 @@ def strategies():
             except ValueError:
                 pass
 
-    if selected_strategy == 'min_increase':
-        strategy_results = get_min_increase_stocks(params['days'])
-    elif selected_strategy == 'bullish_reversal':
-         strategy_results = get_bullish_reversal_stocks()
-    elif selected_strategy == 'double_bottom':
-        strategy_results = get_double_bottom_stocks(
-            min_days=params['min_days'], 
-            max_days=params['max_days'], 
-            tolerance_pct=params['tolerance'], 
-            lookback_days=params['lookback'], 
-            peak_prominence_pct=params['prominence']
-        )
-    elif selected_strategy == 'double_bottom_v1':
-        df_results = get_double_bottom_stocks()
-        if not df_results.empty:
-             # Convert Timestamp objects to strings if needed, but Jinja might handle them.
-             # Better to be safe for JSON serialization context if valid json needed, but this is template render.
-             # Check if we need to format dates. 
-             # The user's code returns numpy datetime64 or pandas Timestamp in the dict.
-             # Let's convert to dict records.
-             strategy_results = df_results.to_dict('records')
-        else:
-             strategy_results = []
+    # If a strategy is selected, run it (or check cache)
+    if selected_strategy:
+        # Check if we need to re-run
+        # We re-run if:
+        # 1. Strategy not in cache
+        # 2. Params changed
+        # 3. Explicit 'reload' forced (not implemented yet, but good practice)
+        
+        cached = STRATEGY_CACHE[user_id].get(selected_strategy)
+        run_new = True
+        
+        if cached:
+            # Compare params (exclude 'days' if not relevant to the strategy, but simple comparison is okay)
+            # For strictness, we should compare only relevant params, but comparing all is safer/easier
+            if cached['params'] == params:
+                run_new = False
+        
+        if run_new:
+            new_results = []
+            if selected_strategy == 'min_increase':
+                new_results = get_min_increase_stocks(params['days'])
+            elif selected_strategy == 'bullish_reversal':
+                 new_results = get_bullish_reversal_stocks()
+            elif selected_strategy == 'double_bottom':
+                new_results = get_double_bottom_stocks(
+                    min_days=params['min_days'], 
+                    max_days=params['max_days'], 
+                    tolerance_pct=params['tolerance'], 
+                    lookback_days=params['lookback'], 
+                    peak_prominence_pct=params['prominence']
+                )
+            elif selected_strategy == 'double_bottom_v1':
+                df_results = get_double_bottom_v1_stocks()
+                if not df_results.empty:
+                     new_results = df_results.to_dict('records')
+                else:
+                     new_results = []
+            
+            # Update Cache
+            STRATEGY_CACHE[user_id][selected_strategy] = {
+                'params': params.copy(), # Store copy of current params
+                'data': new_results
+            }
+
+    # Prepare data for template
+    # We pass the entire cache for this user so the template can render any tab that has data
+    cached_data = STRATEGY_CACHE[user_id]
+    
+    # For backward compatibility with template (which expects 'results' for the selected strategy)
+    current_results = cached_data.get(selected_strategy, {}).get('data', []) if selected_strategy else []
 
     return render_template('strategies.html', 
                          strategy=selected_strategy, 
-                         results=strategy_results,
+                         results=current_results,
+                         cached_data=cached_data,
                          params=params)
 
 @app.route('/paper_trading', methods=['GET', 'POST'])
