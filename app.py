@@ -9,6 +9,7 @@ from strategies.min_increase import get_min_increase_stocks
 from strategies.bullish_reversal import get_bullish_reversal_stocks
 from strategies.double_bottom import get_double_bottom_stocks
 from strategies.double_bottom_v1 import get_double_bottom_stocks as get_double_bottom_v1_stocks
+from strategies.geminis_strategy import get_geminis_strategy_stocks
 
 # Global Strategy Cache (In-Memory)
 # Structure: { user_id: { strategy_name: { 'params': {...}, 'data': [...] } } }
@@ -261,6 +262,8 @@ def strategies():
                 new_results = get_min_increase_stocks(params['days'])
             elif selected_strategy == 'bullish_reversal':
                  new_results = get_bullish_reversal_stocks()
+            elif selected_strategy == 'geminis_strategy':
+                new_results = get_geminis_strategy_stocks()
             elif selected_strategy == 'double_bottom':
                 new_results = get_double_bottom_stocks(
                     min_days=params['min_days'], 
