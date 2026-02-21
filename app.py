@@ -75,6 +75,7 @@ login_manager.login_view = 'login'
 # Mock Database
 USERS = {
     'rahul': {'password': 'Sachin@1010##^^'},
+    'watch': {'password': 'watch123'},
     'snehashish': {'password': 'sneh123'}
 }
 
