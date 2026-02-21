@@ -4,6 +4,7 @@ import pandas as pd
 from datetime import timedelta, datetime
 import secrets
 import os
+import yfinance as yf
 from database import get_stock_db_connection, get_orders_db_connection
 from strategies.min_increase import get_min_increase_stocks
 from strategies.bullish_reversal import get_bullish_reversal_stocks
@@ -116,6 +117,23 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
+# Global Indices Map for the Charts
+INDICES_MAP = {
+    "Nifty 50": "^NSEI",
+    "Nifty Auto": "^CNXAUTO",
+    "Nifty Metal": "^CNXMETAL",
+    "Nifty Bank": "^NSEBANK",
+    "Nifty IT": "^CNXIT",
+    "Nifty Pharma": "^CNXPHARMA",
+    "Nifty FMCG": "^CNXFMCG",
+    "Nifty Realty": "^CNXREALTY",
+    "Nifty Media": "^CNXMEDIA",
+    "Nifty Energy": "^CNXENERGY",
+    "Nifty PSU Bank": "^CNXPSUBANK",
+    "Nifty Infra": "^CNXINFRA",
+    "India VIX": "^INDIAVIX"
+}
+
 @app.route('/', methods=['GET', 'POST'])
 @login_required
 def index():
@@ -209,7 +227,8 @@ def index():
                          date=date_filter,
                          page=page,
                          total_pages=total_pages,
-                         total_records=total_records)
+                         total_records=total_records,
+                         indices=INDICES_MAP)
 
 @app.route('/strategies', methods=['GET', 'POST'])
 @login_required
@@ -665,7 +684,87 @@ def search_stocks():
     finally:
         conn.close()
 
-# --- API Endpoints for UI Interactivity ---
+# --- API Endpoints and Secondary Views ---
+
+@app.route('/api/sectors/all/history')
+@login_required
+def all_sectors_history():
+    start_date = request.args.get('start_date')
+    
+    if not start_date:
+        # Default to 1 year ago if no date is provided
+        start_date = (datetime.now() - timedelta(days=365)).strftime('%Y-%m-%d')
+        
+    try:
+        # Fetch data for all tickers concurrently
+        tickers = list(INDICES_MAP.values())
+        data = yf.download(tickers, start=start_date, group_by='ticker', auto_adjust=True)
+        
+        if data.empty:
+             return jsonify({"error": "No data found for the given date range"}), 404
+
+        # Extract dates ensuring it's not a multi-index and format as string
+        dates = data.index.strftime('%Y-%m-%d').tolist()
+        datasets = []
+        
+        # Calculate relative percentage change for each index
+        for name, ticker in INDICES_MAP.items():
+            if ticker in data.columns.levels[0]:
+                series = data[(ticker, 'Close')].dropna()
+                
+                # We need to map the series back to the original dates index to keep arrays aligned.
+                # Use interpolation or forward fill to handle NaN values (missing trading days)
+                aligned_series = series.reindex(data.index).ffill()
+                
+                # Get the absolute first valid price in the aligned series to calculate % change
+                first_valid_index = aligned_series.first_valid_index()
+                if first_valid_index is None:
+                    continue # No valid data for this ticker
+                    
+                start_price = aligned_series.loc[first_valid_index]
+                
+                # Calculate % change: ((Current - Start) / Start) * 100
+                pct_change = ((aligned_series - start_price) / start_price) * 100
+                
+                datasets.append({
+                    "label": name,
+                    "data": [round(val, 2) if not pd.isna(val) else None for val in pct_change.tolist()]
+                })
+
+        return jsonify({
+            "dates": dates,
+            "datasets": datasets
+        })
+        
+    except Exception as e:
+        print(f"Error fetching all sectors history: {e}")
+        return jsonify({"error": "Failed to fetch all sectors data"}), 500
+
+@app.route('/api/sector/<ticker>/history')
+@login_required
+def sector_history(ticker):
+    try:
+        # Fetch 1 year of historical data from Yahoo Finance
+        stock = yf.Ticker(ticker)
+        hist = stock.history(period="1y")
+        
+        if hist.empty:
+            return jsonify({"error": "No data found for ticker"}), 404
+            
+        # Format dates as YYYY-MM-DD strings
+        dates = hist.index.strftime('%Y-%m-%d').tolist()
+        # Round prices to 2 decimal places
+        prices = [round(p, 2) for p in hist['Close'].tolist()]
+        
+        return jsonify({
+            "ticker": ticker,
+            "dates": dates,
+            "prices": prices
+        })
+    except Exception as e:
+        print(f"Error fetching Yahoo Finance data for {ticker}: {e}")
+        return jsonify({"error": "Failed to fetch sector data"}), 500
+
 @app.route('/api/stock/<sc_code>/history')
 @login_required
 def stock_history(sc_code):

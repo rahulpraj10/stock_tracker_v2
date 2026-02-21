@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    .sectors-container {
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+        height: 100%;
+    }
+
+    .indices-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+        gap: 12px;
+        background: var(--card-bg);
+        padding: 24px;
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+    }
+
+    .index-btn {
+        padding: 12px 8px;
+        border: 1px solid var(--border-color);
+        background: #f9fafb;
+        color: var(--text-main);
+        border-radius: 8px;
+        font-weight: 500;
+        font-size: 0.85rem;
+        cursor: pointer;
+        transition: all 0.2s;
+        text-align: center;
+        user-select: none;
+    }
+
+    .index-btn:hover {
+        border-color: var(--primary-color);
+        color: var(--primary-color);
+        background: #eff6ff;
+    }
+
+    .index-btn.active {
+        background: var(--primary-color);
+        color: white;
+        border-color: var(--primary-color);
+        box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.2);
+    }
+</style>
+
+<div class="sectors-container">
+    <div class="indices-grid" id="indicesGrid">
+        {% for name, ticker in indices.items() %}
+        <button class="index-btn" data-ticker="{{ ticker }}" data-name="{{ name }}" onclick="selectIndex(this)">
+            {{ name }}
+        </button>
+        {% endfor %}
+    </div>
+
+    <div class="chart-card">
+        <div class="chart-header">
+            <div>
+                <div class="chart-title" id="currentChartTitle">Select an Index</div>
+                <div class="chart-subtitle" id="currentChartTicker">Historical Price (1 Year)</div>
+            </div>
+
+            <!-- Optional Timeframe Selectors can go here later -->
+        </div>
+
+        <div class="chart-container-inner">
+            <div id="chartLoading" class="loading-overlay">
+                <div class="spinner"></div>
+                Loading data from Yahoo Finance...
+            </div>
+            <canvas id="sectorChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<script>
+    let sectorChartInstance = null;
+
+    function selectIndex(button) {
+        // Update active state on buttons
+        document.querySelectorAll('.index-btn').forEach(btn => btn.classList.remove('active'));
+        button.classList.add('active');
+
+        const ticker = button.getAttribute('data-ticker');
+        const name = button.getAttribute('data-name');
+
+        loadChartData(ticker, name);
+    }
+
+    function loadChartData(ticker, name) {
+        const titleEl = document.getElementById('currentChartTitle');
+        const tickerEl = document.getElementById('currentChartTicker');
+        const loadingEl = document.getElementById('chartLoading');
+        const ctx = document.getElementById('sectorChart').getContext('2d');
+
+        titleEl.textContent = name;
+        tickerEl.textContent = `${ticker} • Historical Price (1 Year)`;
+        loadingEl.classList.add('active');
+
+        fetch(`/api/sector/${encodeURIComponent(ticker)}/history`)
+            .then(response => {
+                if (!response.ok) throw new Error('Network response was not ok');
+                return response.json();
+            })
+            .then(data => {
+                if (data.error) throw new Error(data.error);
+                renderSectorChart(ctx, data.dates, data.prices, name);
+            })
+            .catch(error => {
+                console.error('Error fetching sector history:', error);
+                titleEl.textContent = `Error loading ${name}`;
+                if (sectorChartInstance) sectorChartInstance.destroy();
+            })
+            .finally(() => {
+                loadingEl.classList.remove('active');
+            });
+    }
+
+    function renderSectorChart(ctx, dates, prices, name) {
+        if (sectorChartInstance) {
+            sectorChartInstance.destroy();
+        }
+
+        let gradient = ctx.createLinearGradient(0, 0, 0, 400);
+        gradient.addColorStop(0, 'rgba(16, 185, 129, 0.2)'); // Emerald color for sectors
+        gradient.addColorStop(1, 'rgba(16, 185, 129, 0)');
+
+        // Calculate some basic stats for the tooltip or Y axis scaling if needed
+        const minPrice = Math.min(...prices);
+        const maxPrice = Math.max(...prices);
+        const margin = (maxPrice - minPrice) * 0.05;
+
+        sectorChartInstance = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: dates,
+                datasets: [{
+                    label: name,
+                    data: prices,
+                    borderColor: '#10b981', // Emerald 500
+                    backgroundColor: gradient,
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    pointHoverRadius: 5,
+                    pointHoverBackgroundColor: '#10b981',
+                    pointHoverBorderColor: '#fff',
+                    pointHoverBorderWidth: 2,
+                    fill: true,
+                    tension: 0.1 // slight curve
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                        titleColor: '#1f2937',
+                        bodyColor: '#1f2937',
+                        borderColor: '#e5e7eb',
+                        borderWidth: 1,
+                        padding: 12,
+                        displayColors: false,
+                        titleFont: { size: 13, weight: '600' },
+                        bodyFont: { size: 14, weight: 'bold' },
+                        callbacks: {
+                            label: function (context) {
+                                return `₹${context.parsed.y.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: {
+                            display: false,
+                            drawBorder: false
+                        },
+                        ticks: {
+                            maxTicksLimit: 12,
+                            color: '#6b7280',
+                            maxRotation: 45,
+                            minRotation: 0
+                        }
+                    },
+                    y: {
+                        min: Math.floor(minPrice - margin),
+                        max: Math.ceil(maxPrice + margin),
+                        grid: {
+                            color: '#f3f4f6',
+                            drawBorder: false
+                        },
+                        ticks: {
+                            color: '#6b7280',
+                            font: { size: 11 },
+                            callback: function (value) {
+                                return '₹' + value.toLocaleString();
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // Initialize: click the first button on load
+    window.addEventListener('DOMContentLoaded', () => {
+        const firstBtn = document.querySelector('.index-btn');
+        if (firstBtn) {
+            firstBtn.click();
+        }
+    });
+</script>
+{% endblock %}
