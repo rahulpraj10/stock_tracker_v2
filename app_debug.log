@@ -394,3 +394,59 @@ Chart Request: OrderID=10, SC_CODE=532540, Date=2026-02-02
 Rows found: 13
 Chart Request: OrderID=22, SC_CODE=543535, Date=2026-02-13
 Rows found: 4
+Chart Request: OrderID=24, SC_CODE=506879, Date=2026-02-18
+Rows found: 1
+Chart Request: OrderID=23, SC_CODE=543396, Date=2026-02-16
+Rows found: 3
+Chart Request: OrderID=24, SC_CODE=506879, Date=2026-02-18
+Rows found: 1
+Chart Request: OrderID=23, SC_CODE=543396, Date=2026-02-16
+Rows found: 3
+Chart Request: OrderID=22, SC_CODE=543535, Date=2026-02-13
+Rows found: 4
+Chart Request: OrderID=21, SC_CODE=500483, Date=2026-02-03
+Rows found: 12
+Chart Request: OrderID=24, SC_CODE=506879, Date=2026-02-18
+Rows found: 2
+Chart Request: OrderID=24, SC_CODE=506879, Date=2026-02-18
+Rows found: 2
+Chart Request: OrderID=23, SC_CODE=543396, Date=2026-02-16
+Rows found: 4
+Chart Request: OrderID=22, SC_CODE=543535, Date=2026-02-13
+Rows found: 4
+Chart Request: OrderID=21, SC_CODE=500483, Date=2026-02-03
+Rows found: 13
+Chart Request: OrderID=21, SC_CODE=500483, Date=2026-02-03
+Rows found: 13
+Chart Request: OrderID=22, SC_CODE=543535, Date=2026-02-13
+Rows found: 4
+Chart Request: OrderID=21, SC_CODE=500483, Date=2026-02-03
+Rows found: 13
+Chart Request: OrderID=24, SC_CODE=506879, Date=2026-02-18
+Rows found: 2
+Chart Request: OrderID=23, SC_CODE=543396, Date=2026-02-16
+Rows found: 4
+Chart Request: OrderID=22, SC_CODE=543535, Date=2026-02-13
+Rows found: 4
+Chart Request: OrderID=22, SC_CODE=543535, Date=2026-02-13
+Rows found: 4
+Chart Request: OrderID=24, SC_CODE=506879, Date=2026-02-18
+Rows found: 2
+Chart Request: OrderID=24, SC_CODE=506879, Date=2026-02-18
+Rows found: 2
+Chart Request: OrderID=23, SC_CODE=543396, Date=2026-02-16
+Rows found: 4
+Chart Request: OrderID=19, SC_CODE=500112, Date=2026-02-16
+Rows found: 4
+Chart Request: OrderID=18, SC_CODE=500033, Date=2026-02-13
+Rows found: 5
+Chart Request: OrderID=17, SC_CODE=500477, Date=2026-02-13
+Rows found: 5
+Chart Request: OrderID=19, SC_CODE=500112, Date=2026-02-16
+Rows found: 4
+Chart Request: OrderID=24, SC_CODE=506879, Date=2026-02-18
+Rows found: 2
+Chart Request: OrderID=24, SC_CODE=506879, Date=2026-02-18
+Rows found: 2
+Chart Request: OrderID=23, SC_CODE=543396, Date=2026-02-16
+Rows found: 5

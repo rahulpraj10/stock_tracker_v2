@@ -109,6 +109,85 @@
             border-color: var(--primary-color);
         }
     }
+
+    /* Chart Modal Styles */
+    .modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    }
+
+    .modal-overlay.show {
+        display: flex;
+        opacity: 1;
+    }
+
+    .chart-modal {
+        background: var(--card-bg);
+        border-radius: 12px;
+        width: 90%;
+        max-width: 800px;
+        padding: 24px;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        transform: scale(0.95);
+        transition: transform 0.3s ease;
+        position: relative;
+    }
+
+    .modal-overlay.show .chart-modal {
+        transform: scale(1);
+    }
+
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+    }
+
+    .modal-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: var(--text-main);
+    }
+
+    .close-modal {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: var(--text-secondary);
+        transition: color 0.2s;
+    }
+
+    .close-modal:hover {
+        color: var(--text-main);
+    }
+
+    .chart-container {
+        position: relative;
+        height: 400px;
+        width: 100%;
+    }
+
+    /* Clickable Rows */
+    .clickable-row {
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+
+    .clickable-row:hover {
+        background-color: #f3f4f6;
+    }
 </style>
 
 <div class="strategies-container">
@@ -190,7 +269,7 @@
             </thead>
             <tbody>
                 {% for stock in db_cache.data %}
-                <tr>
+                <tr class="clickable-row" onclick='openChartModal("{{ stock.SC_CODE }}", "{{ stock.SC_NAME }}")'>
                     <td>{{ stock.SC_CODE }}</td>
                     <td>{{ stock.SC_NAME }}</td>
                     <td>
@@ -224,9 +303,99 @@
             Identify stocks forming a "W" pattern (Version 1 - Optimized).
         </p>
 
-        <form method="GET" action="{{ url_for('strategies') }}" style="margin-bottom: 24px;">
+        <form method="GET" action="{{ url_for('strategies') }}" class="filter-form" style="margin-bottom: 24px;">
             <input type="hidden" name="strategy" value="double_bottom_v1">
-            <button type="submit" class="btn btn-primary">Find Patterns</button>
+            <div
+                style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; width: 100%;">
+
+                <div class="form-group">
+                    <label>Min Data Length</label>
+                    <input type="number" name="min_data" value="{{ params.min_data|default(40) }}" min="20" max="365">
+                </div>
+                <div class="form-group">
+                    <label>Extrema Order</label>
+                    <input type="number" name="extrema_order" value="{{ params.extrema_order|default(5) }}" min="1"
+                        max="20">
+                </div>
+                <div class="form-group">
+                    <label>Min Bottom Gap</label>
+                    <input type="number" name="min_bottom_gap" value="{{ params.min_bottom_gap|default(12) }}" min="1">
+                </div>
+                <div class="form-group">
+                    <label>Pre Drop Lookback</label>
+                    <input type="number" name="pre_drop_lookback" value="{{ params.pre_drop_lookback|default(20) }}"
+                        min="5">
+                </div>
+                <div class="form-group">
+                    <label>Min Pre Days</label>
+                    <input type="number" name="min_pre_days" value="{{ params.min_pre_days|default(5) }}" min="1">
+                </div>
+                <div class="form-group">
+                    <label>Min Prior Drop</label>
+                    <input type="number" name="min_prior_drop" value="{{ params.min_prior_drop|default(0.12) }}"
+                        step="0.01">
+                </div>
+                <div class="form-group">
+                    <label>Reversal Window</label>
+                    <input type="number" name="reversal_window" value="{{ params.reversal_window|default(10) }}"
+                        min="1">
+                </div>
+                <div class="form-group">
+                    <label>Reversal Tolerance</label>
+                    <input type="number" name="reversal_tolerance" value="{{ params.reversal_tolerance|default(0.03) }}"
+                        step="0.01">
+                </div>
+                <div class="form-group">
+                    <label>Max Linger Days</label>
+                    <input type="number" name="max_linger_days" value="{{ params.max_linger_days|default(6) }}" min="1">
+                </div>
+                <div class="form-group">
+                    <label>Min Peak Spacing</label>
+                    <input type="number" name="min_peak_spacing" value="{{ params.min_peak_spacing|default(4) }}"
+                        min="1">
+                </div>
+                <div class="form-group">
+                    <label>Peak Separation</label>
+                    <input type="number" name="peak_separation" value="{{ params.peak_separation|default(3) }}" min="1">
+                </div>
+                <div class="form-group">
+                    <label>Min Peak Drop (Prior)</label>
+                    <input type="number" name="min_peak_drop_from_prior"
+                        value="{{ params.min_peak_drop_from_prior|default(0.05) }}" step="0.01">
+                </div>
+                <div class="form-group">
+                    <label>Bottom Tolerance</label>
+                    <input type="number" name="bottom_tolerance" value="{{ params.bottom_tolerance|default(0.025) }}"
+                        step="0.001">
+                </div>
+                <div class="form-group">
+                    <label>Min Peak Height</label>
+                    <input type="number" name="min_peak_height" value="{{ params.min_peak_height|default(0.06) }}"
+                        step="0.01">
+                </div>
+                <div class="form-group">
+                    <label>No Breakout Tolerance</label>
+                    <input type="number" name="no_breakout_tolerance"
+                        value="{{ params.no_breakout_tolerance|default(0.005) }}" step="0.001">
+                </div>
+                <div class="form-group">
+                    <label>Resistance Buffer</label>
+                    <input type="number" name="resistance_buffer" value="{{ params.resistance_buffer|default(0.015) }}"
+                        step="0.001">
+                </div>
+                <div class="form-group">
+                    <label>Volume Multiplier</label>
+                    <input type="number" name="volume_multiplier" value="{{ params.volume_multiplier|default(1.5) }}"
+                        step="0.1">
+                </div>
+                <div class="form-group" style="display: flex; align-items: flex-end;">
+                    <button type="submit" class="btn btn-primary" style="width: 100%;">Find Patterns</button>
+                    <!-- Add clear button to reset to defaults -->
+                    <a href="{{ url_for('strategies', strategy='double_bottom_v1') }}" class="btn "
+                        style="margin-left: 8px; width: 100%; border: 1px solid var(--border-color); text-align: center; color: var(--text-main); background: #f9fafb; text-decoration: none; display: inline-block; padding: 10px 16px; border-radius: 6px; font-weight: 500;">Reset
+                        Defaults</a>
+                </div>
+            </div>
         </form>
 
         <!-- Cached Results -->
@@ -250,7 +419,7 @@
                 </thead>
                 <tbody>
                     {% for stock in v1_cache.data %}
-                    <tr>
+                    <tr class="clickable-row" onclick='openChartModal("{{ stock.SC_CODE }}", "{{ stock.SC_NAME }}")'>
                         <td>{{ stock.SC_CODE }}</td>
                         <td>{{ stock.SC_NAME }}</td>
                         <td>
@@ -313,7 +482,7 @@
                 </thead>
                 <tbody>
                     {% for stock in reversal_cache.data %}
-                    <tr>
+                    <tr class="clickable-row" onclick='openChartModal("{{ stock.SC_CODE }}", "{{ stock.SC_NAME }}")'>
                         <td>{{ stock.SC_CODE }}</td>
                         <td>{{ stock.SC_NAME }}</td>
                         <td>{{ stock.Date }}</td>
@@ -382,7 +551,7 @@
                 </thead>
                 <tbody>
                     {% for stock in min_inc_cache.data %}
-                    <tr>
+                    <tr class="clickable-row" onclick='openChartModal("{{ stock.SC_CODE }}", "{{ stock.SC_NAME }}")'>
                         <td>{{ stock.SC_CODE }}</td>
                         <td>{{ stock.SC_NAME }}</td>
                         <td style="font-family: monospace;">{{ stock.Volumes | join(' &rarr; ') }}</td>
@@ -439,7 +608,7 @@
                 </thead>
                 <tbody>
                     {% for stock in geminis_cache.data %}
-                    <tr>
+                    <tr class="clickable-row" onclick='openChartModal("{{ stock.SC_CODE }}", "{{ stock.SC_NAME }}")'>
                         <td>{{ stock.SC_CODE }}</td>
                         <td>{{ stock.SC_NAME }}</td>
                         <td>{{ stock.Date }}</td>
@@ -466,6 +635,19 @@
     <div id="strategy-5" class="strategy-pane">
         <h2>Strategy 5</h2>
         <p style="color: var(--text-secondary);">Strategy logic and results for Strategy 5 will appear here.</p>
+    </div>
+</div>
+
+<!-- Chart Modal -->
+<div id="chartModal" class="modal-overlay">
+    <div class="chart-modal">
+        <div class="modal-header">
+            <div class="modal-title" id="chartModalTitle">Stock History</div>
+            <button class="close-modal" onclick="closeChartModal()">&times;</button>
+        </div>
+        <div class="chart-container">
+            <canvas id="stockChart"></canvas>
+        </div>
     </div>
 </div>
 
@@ -515,6 +697,127 @@
             openStrategy({ currentTarget: document.querySelector("button[onclick*='geminis-strategy']") }, 'geminis-strategy');
         }
         // Add more conditions here as we implement other strategies
+    };
+
+    // --- Charting Logic ---
+    let stockChartInstance = null;
+
+    function openChartModal(scCode, scName) {
+        const modal = document.getElementById('chartModal');
+        const title = document.getElementById('chartModalTitle');
+        const ctx = document.getElementById('stockChart').getContext('2d');
+
+        title.textContent = `Loading ${scName} (${scCode})...`;
+        modal.classList.add('show');
+
+        // Fetch data
+        fetch(`/api/stock/${scCode}/history`)
+            .then(response => {
+                if (!response.ok) throw new Error('Network response was not ok');
+                return response.json();
+            })
+            .then(data => {
+                if (data.error) throw new Error(data.error);
+
+                title.textContent = `${scName} (${scCode}) - Price History`;
+                renderChart(ctx, data.dates, data.prices);
+            })
+            .catch(error => {
+                console.error('Error fetching stock history:', error);
+                title.textContent = `Error loading data for ${scName}`;
+                if (stockChartInstance) stockChartInstance.destroy();
+            });
+    }
+
+    function closeChartModal() {
+        const modal = document.getElementById('chartModal');
+        modal.classList.remove('show');
+    }
+
+    // Close modal if clicked outside the content area
+    window.onclick = function (event) {
+        const modal = document.getElementById('chartModal');
+        if (event.target == modal) {
+            closeChartModal();
+        }
+    }
+
+    function renderChart(ctx, dates, prices) {
+        if (stockChartInstance) {
+            stockChartInstance.destroy();
+        }
+
+        // Gradient fill for visual appeal
+        let gradient = ctx.createLinearGradient(0, 0, 0, 400);
+        gradient.addColorStop(0, 'rgba(37, 99, 235, 0.2)'); // primary color with opacity
+        gradient.addColorStop(1, 'rgba(37, 99, 235, 0)');
+
+        stockChartInstance = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: dates,
+                datasets: [{
+                    label: 'Close Price',
+                    data: prices,
+                    borderColor: '#2563eb', // primary color
+                    backgroundColor: gradient,
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    pointHoverRadius: 4,
+                    fill: true,
+                    tension: 0.1 // slight curve
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                        titleColor: '#1f2937',
+                        bodyColor: '#1f2937',
+                        borderColor: '#e5e7eb',
+                        borderWidth: 1,
+                        padding: 10,
+                        displayColors: false,
+                        callbacks: {
+                            label: function (context) {
+                                return `₹${context.parsed.y.toFixed(2)}`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: {
+                            display: false
+                        },
+                        ticks: {
+                            maxTicksLimit: 10,
+                            color: '#6b7280'
+                        }
+                    },
+                    y: {
+                        grid: {
+                            color: '#f3f4f6'
+                        },
+                        ticks: {
+                            color: '#6b7280',
+                            callback: function (value) {
+                                return '₹' + value;
+                            }
+                        }
+                    }
+                }
+            }
+        });
     };
 </script>
 {% endblock %}

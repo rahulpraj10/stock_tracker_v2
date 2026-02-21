@@ -8,7 +8,7 @@ from database import get_stock_db_connection, get_orders_db_connection
 from strategies.min_increase import get_min_increase_stocks
 from strategies.bullish_reversal import get_bullish_reversal_stocks
 from strategies.double_bottom import get_double_bottom_stocks
-from strategies.double_bottom_v1 import get_double_bottom_stocks as get_double_bottom_v1_stocks
+from strategies.double_bottom_v1 import get_double_bottom_stocks as get_double_bottom_v1_stocks, default_params as db_v1_default_params
 from strategies.geminis_strategy import get_geminis_strategy_stocks
 
 # Global Strategy Cache (In-Memory)
@@ -73,7 +73,7 @@ login_manager.login_view = 'login'
 
 # Mock Database
 USERS = {
-    'rahul': {'password': 'rahul123'},
+    'rahul': {'password': 'Sachin@1010##^^'},
     'snehashish': {'password': 'sneh123'}
 }
 
@@ -221,7 +221,7 @@ def strategies():
     if user_id not in STRATEGY_CACHE:
         STRATEGY_CACHE[user_id] = {}
     
-    # Default parameters for strategies
+    # Default parameters for strategies (Base + DB v1)
     params = {
         'days': 5, # for min_increase
         'min_days': 10,
@@ -230,6 +230,8 @@ def strategies():
         'lookback': 90,
         'prominence': 5.0
     }
+    # Add double_bottom_v1 parameters to the global dictionary
+    params.update(db_v1_default_params)
     
     # Update params from request
     for key in params:
@@ -273,7 +275,7 @@ def strategies():
                     peak_prominence_pct=params['prominence']
                 )
             elif selected_strategy == 'double_bottom_v1':
-                df_results = get_double_bottom_v1_stocks()
+                df_results = get_double_bottom_v1_stocks(params=params)
                 if not df_results.empty:
                      new_results = df_results.to_dict('records')
                 else:
@@ -662,6 +664,37 @@ def search_stocks():
              return jsonify([])
     finally:
         conn.close()
+
+# --- API Endpoints for UI Interactivity ---
+@app.route('/api/stock/<sc_code>/history')
+@login_required
+def stock_history(sc_code):
+    conn = get_stock_db_connection()
+    if not conn:
+         return jsonify({"error": "Database error"}), 500
+    
+    try:
+         query = """
+             SELECT Date, CLOSE 
+             FROM stocks 
+             WHERE SC_CODE = ? OR SC_CODE = CAST(? AS INTEGER)
+             ORDER BY Date ASC
+         """
+         df = pd.read_sql_query(query, conn, params=(sc_code, sc_code))
+         
+         if df.empty:
+             return jsonify({"error": "Stock not found"}), 404
+             
+         return jsonify({
+             "sc_code": sc_code,
+             "dates": df["Date"].tolist(),
+             "prices": df["CLOSE"].tolist()
+         })
+         
+    except Exception as e:
+         return jsonify({"error": str(e)}), 500
+    finally:
+         conn.close()
 
 if __name__ == '__main__':
     app.run(debug=True)
