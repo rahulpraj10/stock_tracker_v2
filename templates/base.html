@@ -44,7 +44,7 @@
             #max-width: 90vw;
             margin: 0 auto;
             padding: 24px;
-            width: 100%;
+            width: 90%;
             flex: 1;
         }
 
@@ -86,6 +86,13 @@
             border-bottom: 2px solid transparent;
             transition: all 0.2s;
             padding: 0 4px;
+            gap: 6px;
+        }
+
+        .nav-icon {
+            width: 18px;
+            height: 18px;
+            stroke-width: 2.2;
         }
 
         .nav-link:hover {
@@ -302,6 +309,15 @@
             .nav-links {
                 gap: 16px;
             }
+
+            .nav-text {
+                display: none;
+            }
+
+            .nav-icon {
+                width: 22px;
+                height: 22px;
+            }
         }
     </style>
 </head>
@@ -321,12 +337,44 @@
             </a>
             <nav class="nav-links">
                 {% if current_user.is_authenticated %}
-                <a href="{{ url_for('index') }}" class="nav-link {% if request.path == '/' %}active{% endif %}">Stock
-                    Data</a>
+                <a href="{{ url_for('index') }}" class="nav-link {% if request.path == '/' %}active{% endif %}"
+                    title="Stock Data">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                        class="nav-icon" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 3v18h18" />
+                        <path d="m19 9-5 5-4-4-3 3" />
+                    </svg>
+                    <span class="nav-text">Stock Data</span>
+                </a>
                 <a href="{{ url_for('strategies') }}"
-                    class="nav-link {% if request.path == '/strategies' %}active{% endif %}">Strategies</a>
+                    class="nav-link {% if request.path == '/strategies' %}active{% endif %}" title="Strategies">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                        class="nav-icon" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="12 2 2 7 12 12 22 7 12 2" />
+                        <polyline points="2 17 12 22 22 17" />
+                        <polyline points="2 12 12 17 22 12" />
+                    </svg>
+                    <span class="nav-text">Strategies</span>
+                </a>
                 <a href="{{ url_for('paper_trading') }}"
-                    class="nav-link {% if request.path == '/paper_trading' %}active{% endif %}">Paper Trading</a>
+                    class="nav-link {% if request.path == '/paper_trading' %}active{% endif %}" title="Paper Trading">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                        class="nav-icon" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <rect width="20" height="14" x="2" y="7" rx="2" ry="2" />
+                        <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+                    </svg>
+                    <span class="nav-text">Paper Trading</span>
+                </a>
+                <a href="{{ url_for('watchlist') }}"
+                    class="nav-link {% if request.path == '/watchlist' %}active{% endif %}" title="Watchlist">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                        class="nav-icon" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <path
+                            d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" />
+                        <circle cx="12" cy="12" r="3" />
+                    </svg>
+                    <span class="nav-text">Watchlist</span>
+                </a>
                 {% endif %}
             </nav>
         </div>

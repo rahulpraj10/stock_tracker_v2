@@ -4,6 +4,7 @@ import pandas as pd
 from datetime import timedelta, datetime
 import secrets
 import os
+from functools import lru_cache
 import yfinance as yf
 from database import get_stock_db_connection, get_orders_db_connection
 from strategies.min_increase import get_min_increase_stocks
@@ -40,10 +41,32 @@ def init_db():
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 ''')
+                cur.execute('''
+                    CREATE TABLE IF NOT EXISTS watchstocks (
+                        id SERIAL PRIMARY KEY,
+                        username TEXT,
+                        sc_code TEXT,
+                        sc_name TEXT,
+                        quantity INTEGER,
+                        order_date TEXT,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                ''')
             else:
                 # SQLite Syntax
                 cur.execute('''
                     CREATE TABLE IF NOT EXISTS orders (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        username TEXT,
+                        sc_code TEXT,
+                        sc_name TEXT,
+                        quantity INTEGER,
+                        order_date TEXT,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                ''')
+                cur.execute('''
+                    CREATE TABLE IF NOT EXISTS watchstocks (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         username TEXT,
                         sc_code TEXT,
@@ -574,13 +597,6 @@ def order_chart_data(order_id):
                     
                     # Calculate Stats
                     if data["values"]:
-                        # database returns rows sorted by Date ASC
-                        # Purchase Price is the price on order_date (first record found)
-                        # But wait, data["values"] is (Price * Qty). Use the raw price for stats or the total value?
-                        # User asked for "purchase price, current price". Usually per unit.
-                        # But the chart shows "Investment Value".
-                        # Let's return both per unit prices for clarity.
-                        
                         try:
                              # Calculate per-unit prices first for % change
                              unit_purchase_price = float(rows[0]['CLOSE'])
@@ -597,7 +613,6 @@ def order_chart_data(order_id):
                         except Exception as e:
                             print(f"Error calculating stats: {e}")
                             data["stats"] = None
-
                 except Exception as e:
                      print(f"Error fetching stock data: {e}")
                 finally:
@@ -608,6 +623,243 @@ def order_chart_data(order_id):
         print(error_msg)
         with open("app_debug.log", "a") as f:
             f.write(error_msg + "\n")
+        return {"error": str(e)}, 500
+    finally:
+        conn_orders.close()
+        
+    return data
+
+# --- Watchlist Functionality ---
+
+@app.route('/watchlist', methods=['GET', 'POST'])
+@login_required
+def watchlist():
+    conn_orders = get_orders_db_connection()
+    if not conn_orders:
+        flash("Database Error", "error")
+        return redirect(url_for('index'))
+    
+    is_postgres = 'psycopg2' in str(type(conn_orders))
+
+    if request.method == 'POST':
+        sc_code = request.form['sc_code'].strip()
+        order_date = request.form['order_date']
+        quantity = int(request.form['quantity'])
+        
+        if not sc_code or not order_date or quantity <= 0:
+             flash("Invalid input parameters.", "error")
+        else:
+             min_date = datetime(2025, 11, 3)
+             max_date = datetime.now()
+             input_date = datetime.strptime(order_date, '%Y-%m-%d')
+             
+             if input_date < min_date or input_date > max_date:
+                  flash("Date must be between Nov 03, 2025 and Today.", "error")
+             else:
+                  conn_stock = get_stock_db_connection()
+                  real_sc_name = None
+                  
+                  if conn_stock:
+                      try:
+                          stock_cur = conn_stock.cursor()
+                          stock_cur.execute("SELECT SC_NAME FROM stocks WHERE CAST(SC_CODE AS TEXT) = ? LIMIT 1", (sc_code,))
+                          row = stock_cur.fetchone()
+                          if row:
+                              real_sc_name = row['SC_NAME']
+                      except Exception as e:
+                          print(f"Error checking stock: {e}")
+                      finally:
+                          conn_stock.close()
+                  
+                  if real_sc_name:
+                      try:
+                          cur = conn_orders.cursor()
+                          if is_postgres:
+                              cur.execute(
+                                  'INSERT INTO watchstocks (username, sc_code, sc_name, quantity, order_date) VALUES (%s, %s, %s, %s, %s)',
+                                  (current_user.id, sc_code, real_sc_name, quantity, order_date)
+                              )
+                          else:
+                              cur.execute(
+                                  'INSERT INTO watchstocks (username, sc_code, sc_name, quantity, order_date) VALUES (?, ?, ?, ?, ?)',
+                                  (current_user.id, sc_code, real_sc_name, quantity, order_date)
+                              )
+                          conn_orders.commit()
+                          cur.close()
+                          flash("Added to Watchlist!", "success")
+                      except Exception as e:
+                          print(f"Error adding to watchlist: {e}")
+                          flash("Failed to add to watchlist.", "error")
+                  else:
+                      flash("Invalid Stock Code. Please verify.", "error")
+
+    # Fetch user's watchlist
+    orders = []
+    try:
+        cur = conn_orders.cursor()
+        if is_postgres:
+             cur.execute('SELECT * FROM watchstocks WHERE username = %s ORDER BY created_at DESC', (current_user.id,))
+        else:
+             cur.execute('SELECT * FROM watchstocks WHERE username = ? ORDER BY created_at DESC', (current_user.id,))
+        orders = cur.fetchall()
+        cur.close()
+    except Exception as e:
+        print(f"Error fetching watchlist: {e}")
+    finally:
+        conn_orders.close()
+
+    # Calculate Portfolio Summary
+    total_invested = 0.0
+    total_current_value = 0.0
+    
+    stock_conn = get_stock_db_connection()
+    if orders and stock_conn:
+        try:
+            for order in orders:
+                try:
+                    query = 'SELECT Close, Date FROM stocks WHERE "SCRIP CODE" = ? ORDER BY Date ASC'
+                    stock_data = stock_conn.execute(query, (order['sc_code'],)).fetchall()
+
+                    if stock_data:
+                        purchase_price = 0.0
+                        order_date_str = order['order_date']
+                        
+                        for row in stock_data:
+                            if row['Date'] >= order_date_str:
+                                purchase_price = float(row['Close'])
+                                break
+                        
+                        if purchase_price == 0.0 and stock_data:
+                             purchase_price = float(stock_data[-1]['Close'])
+
+                        current_price = float(stock_data[-1]['Close'])
+                        
+                        total_invested += purchase_price * order['quantity']
+                        total_current_value += current_price * order['quantity']
+                except Exception as e:
+                    print(f"Error calculating stats for watchlist {order['id']}: {e}")
+        except Exception as e:
+             print(f"Error in watchlist calc: {e}")
+        finally:
+            stock_conn.close()
+    elif stock_conn:
+        stock_conn.close()
+
+    total_pl = total_current_value - total_invested
+    total_pl_pct = (total_pl / total_invested * 100) if total_invested > 0 else 0.0
+
+    return render_template('watchlist.html', 
+                           orders=orders,
+                           summary={
+                               'total_invested': total_invested,
+                               'total_current_value': total_current_value,
+                               'total_pl': total_pl,
+                               'total_pl_pct': total_pl_pct
+                           })
+
+@app.route('/delete_watchlist_order/<int:order_id>', methods=['POST'])
+@login_required
+def delete_watchlist_order(order_id):
+    conn = get_orders_db_connection()
+    if not conn:
+        flash("Database Error", "error")
+        return redirect(url_for('watchlist'))
+    
+    is_postgres = 'psycopg2' in str(type(conn))
+    
+    try:
+        cur = conn.cursor()
+        if is_postgres:
+             cur.execute("SELECT id FROM watchstocks WHERE id = %s AND username = %s", (order_id, current_user.id))
+        else:
+             cur.execute("SELECT id FROM watchstocks WHERE id = ? AND username = ?", (order_id, current_user.id))
+             
+        if cur.fetchone():
+            if is_postgres:
+                cur.execute("DELETE FROM watchstocks WHERE id = %s", (order_id,))
+            else:
+                cur.execute("DELETE FROM watchstocks WHERE id = ?", (order_id,))
+                
+            conn.commit()
+            flash("Item removed from Watchlist.", "success")
+        else:
+            flash("Item not found or unauthorized.", "error")
+        cur.close()
+    except Exception as e:
+        print(f"Error deleting from watchlist: {e}")
+        flash("Failed to delete item.", "error")
+    finally:
+        conn.close()
+        
+    return redirect(url_for('watchlist'))
+
+@app.route('/watchlist_chart_data/<int:order_id>')
+@login_required
+def watchlist_chart_data(order_id):
+    conn_orders = get_orders_db_connection()
+    if not conn_orders:
+        return {"error": "Database error"}, 500
+        
+    data = {"dates": [], "values": []}
+    
+    is_postgres = 'psycopg2' in str(type(conn_orders))
+    
+    try:
+        cur_orders = conn_orders.cursor()
+        if is_postgres:
+            cur_orders.execute('SELECT * FROM watchstocks WHERE id = %s AND username = %s', (order_id, current_user.id))
+        else:
+            cur_orders.execute('SELECT * FROM watchstocks WHERE id = ? AND username = ?', (order_id, current_user.id))
+            
+        order = cur_orders.fetchone()
+        cur_orders.close()
+        
+        if order:
+            sc_code = order['sc_code']
+            order_date = order['order_date']
+            quantity = order['quantity']
+            
+            conn_stock = get_stock_db_connection()
+            if conn_stock:
+                try:
+                    query = """
+                        SELECT Date, "CLOSE" 
+                        FROM stocks 
+                        WHERE "SCRIP CODE" = ? AND Date >= ? 
+                        ORDER BY Date ASC
+                    """
+                    cursor_stock = conn_stock.cursor()
+                    rows = cursor_stock.execute(query, (sc_code, order_date)).fetchall()
+                    
+                    for row in rows:
+                        data["dates"].append(row['Date'])
+                        try:
+                            close_val = float(row['CLOSE'])
+                        except:
+                            close_val = 0.0
+                        data["values"].append(close_val * quantity)
+                    
+                    if data["values"]:
+                        try:
+                             unit_purchase_price = float(rows[0]['CLOSE'])
+                             unit_current_price = float(rows[-1]['CLOSE'])
+                             
+                             pct_change = ((unit_current_price - unit_purchase_price) / unit_purchase_price) * 100 if unit_purchase_price != 0 else 0
+                             
+                             data["stats"] = {
+                                 "purchase_price": unit_purchase_price * quantity,
+                                 "current_price": unit_current_price * quantity,
+                                 "pct_change": round(pct_change, 2),
+                                 "profit_loss": (unit_current_price - unit_purchase_price) * quantity
+                             }
+                        except Exception as e:
+                            print(f"Error calculating stats: {e}")
+                            data["stats"] = None
+                except Exception as e:
+                     print(f"Error fetching stock data: {e}")
+                finally:
+                    conn_stock.close()
+    except Exception as e:
         return {"error": str(e)}, 500
     finally:
         conn_orders.close()
@@ -687,6 +939,12 @@ def search_stocks():
 
 # --- API Endpoints and Secondary Views ---
 
+@lru_cache(maxsize=32)
+def _get_all_sectors_data(start_date):
+    tickers = list(INDICES_MAP.values())
+    data = yf.download(tickers, start=start_date, group_by='ticker', auto_adjust=True)
+    return data
+
 @app.route('/api/sectors/all/history')
 @login_required
 def all_sectors_history():
@@ -697,9 +955,8 @@ def all_sectors_history():
         start_date = (datetime.now() - timedelta(days=365)).strftime('%Y-%m-%d')
         
     try:
-        # Fetch data for all tickers concurrently
-        tickers = list(INDICES_MAP.values())
-        data = yf.download(tickers, start=start_date, group_by='ticker', auto_adjust=True)
+        # Fetch data for all tickers concurrently (cached)
+        data = _get_all_sectors_data(start_date)
         
         if data.empty:
              return jsonify({"error": "No data found for the given date range"}), 404
@@ -741,13 +998,18 @@ def all_sectors_history():
         print(f"Error fetching all sectors history: {e}")
         return jsonify({"error": "Failed to fetch all sectors data"}), 500
 
+@lru_cache(maxsize=128)
+def _get_sector_history_data(ticker):
+    stock = yf.Ticker(ticker)
+    hist = stock.history(period="1y")
+    return hist
+
 @app.route('/api/sector/<ticker>/history')
 @login_required
 def sector_history(ticker):
     try:
-        # Fetch 1 year of historical data from Yahoo Finance
-        stock = yf.Ticker(ticker)
-        hist = stock.history(period="1y")
+        # Fetch 1 year of historical data from Yahoo Finance (cached)
+        hist = _get_sector_history_data(ticker)
         
         if hist.empty:
             return jsonify({"error": "No data found for ticker"}), 404
