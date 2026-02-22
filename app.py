@@ -629,6 +629,46 @@ def order_chart_data(order_id):
         
     return data
 
+@app.route('/api/add_to_watchlist', methods=['POST'])
+@login_required
+def api_add_to_watchlist():
+    data = request.get_json()
+    sc_code = data.get('sc_code')
+    sc_name = data.get('sc_name')
+    
+    if not sc_code or not sc_name:
+        return jsonify({'error': 'Missing sc_code or sc_name'}), 400
+        
+    order_date = datetime.now().strftime('%Y-%m-%d')
+    quantity = 1
+    
+    conn_orders = get_orders_db_connection()
+    if not conn_orders:
+        return jsonify({'error': 'Database error'}), 500
+        
+    is_postgres = 'psycopg2' in str(type(conn_orders))
+    
+    try:
+        cur = conn_orders.cursor()
+        if is_postgres:
+            cur.execute(
+                'INSERT INTO watchstocks (username, sc_code, sc_name, quantity, order_date) VALUES (%s, %s, %s, %s, %s)',
+                (current_user.id, sc_code, sc_name, quantity, order_date)
+            )
+        else:
+            cur.execute(
+                'INSERT INTO watchstocks (username, sc_code, sc_name, quantity, order_date) VALUES (?, ?, ?, ?, ?)',
+                (current_user.id, sc_code, sc_name, quantity, order_date)
+            )
+        conn_orders.commit()
+        cur.close()
+        return jsonify({'success': True, 'message': 'Added to watchlist successfully'})
+    except Exception as e:
+        print(f"Error in api_add_to_watchlist: {e}")
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn_orders.close()
+
 # --- Watchlist Functionality ---
 
 @app.route('/watchlist', methods=['GET', 'POST'])

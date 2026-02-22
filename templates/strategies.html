@@ -643,7 +643,12 @@
     <div class="chart-modal">
         <div class="modal-header">
             <div class="modal-title" id="chartModalTitle">Stock History</div>
-            <button class="close-modal" onclick="closeChartModal()">&times;</button>
+            <div>
+                <button id="addToWatchlistBtn" class="btn btn-primary" onclick="addToWatchlist()"
+                    style="margin-right: 12px; height: 32px; padding: 0 12px; font-size: 12px;">Add to
+                    Watchlist</button>
+                <button class="close-modal" onclick="closeChartModal()">&times;</button>
+            </div>
         </div>
         <div class="chart-container">
             <canvas id="stockChart"></canvas>
@@ -701,13 +706,18 @@
 
     // --- Charting Logic ---
     let stockChartInstance = null;
+    let currentModalStock = { code: null, name: null };
 
     function openChartModal(scCode, scName) {
+        currentModalStock = { code: scCode, name: scName };
         const modal = document.getElementById('chartModal');
         const title = document.getElementById('chartModalTitle');
         const ctx = document.getElementById('stockChart').getContext('2d');
+        const watchBtn = document.getElementById('addToWatchlistBtn');
 
         title.textContent = `Loading ${scName} (${scCode})...`;
+        watchBtn.textContent = 'Add to Watchlist';
+        watchBtn.disabled = false;
         modal.classList.add('show');
 
         // Fetch data
@@ -729,9 +739,44 @@
             });
     }
 
+    async function addToWatchlist() {
+        if (!currentModalStock.code || !currentModalStock.name) return;
+
+        const btn = document.getElementById('addToWatchlistBtn');
+        btn.disabled = true;
+        btn.textContent = 'Adding...';
+
+        try {
+            const response = await fetch('/api/add_to_watchlist', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    sc_code: currentModalStock.code,
+                    sc_name: currentModalStock.name
+                })
+            });
+
+            const result = await response.json();
+            if (response.ok && result.success) {
+                btn.textContent = 'Added \u2713';
+                btn.classList.add('btn-success'); // Optional: changes color if class exists
+            } else {
+                throw new Error(result.error || 'Failed to add');
+            }
+        } catch (error) {
+            console.error('Watchlist Error:', error);
+            alert('Error adding to watchlist: ' + error.message);
+            btn.textContent = 'Add to Watchlist';
+            btn.disabled = false;
+        }
+    }
+
     function closeChartModal() {
         const modal = document.getElementById('chartModal');
         modal.classList.remove('show');
+        currentModalStock = { code: null, name: null };
     }
 
     // Close modal if clicked outside the content area
