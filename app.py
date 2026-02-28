@@ -117,6 +117,15 @@ def make_session_permanent():
     session.permanent = True
     app.permanent_session_lifetime = timedelta(minutes=5)
 
+@app.after_request
+def add_cache_control_headers(response):
+    """Disable caching for specific dynamic pages to ensure fresh data."""
+    if request.endpoint in ['paper_trading', 'watchlist']:
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+    return response
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
