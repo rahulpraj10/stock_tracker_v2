@@ -14,6 +14,18 @@
         margin-bottom: 24px;
     }
 
+    .text-success {
+        color: #059669 !important; /* Green text */
+        background-color: #ecfdf5 !important; /* Light green bg */
+        border-color: #10b981 !important;
+    }
+
+    .text-danger {
+        color: #dc2626 !important; /* Red text */
+        background-color: #fef2f2 !important; /* Light red bg */
+        border-color: #ef4444 !important;
+    }
+
     .index-btn {
         padding: 12px 8px;
         border: 1px solid var(--border-color);
@@ -48,9 +60,13 @@
         All
     </button>
     {% for name, ticker in indices.items() %}
-    <button class="index-btn" data-ticker="{{ ticker }}" data-name="{{ name }}" onclick="selectIndex(this)">
-        {{ name }}
-    </button>
+        {# Get the value for this specific index #}
+        {% set change = index_performance.get(name, 0) %}
+
+        <button class="index-btn {{ 'text-success' if change > 0 else 'text-danger' if change < 0 else 'text-danger' }}"
+                data-ticker="{{ ticker }}" data-name="{{ name }}" onclick="selectIndex(this)">
+            {{ name }}
+        </button>
     {% endfor %}
 </div>
 
