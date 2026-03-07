@@ -388,6 +388,10 @@
                     <input type="number" name="volume_multiplier" value="{{ params.volume_multiplier|default(1.5) }}"
                         step="0.1">
                 </div>
+                <div class="form-group">
+                    <label for="db_min_price">Min Price (Close > X)</label>
+                    <input type="number" id="db_min_price" name="min_price" value="{{ request.args.get('min_price', '') }}" step="0.01" placeholder="e.g. 100">
+            </div>
                 <div class="form-group" style="display: flex; align-items: flex-end;">
                     <button type="submit" class="btn btn-primary" style="width: 100%;">Find Patterns</button>
                     <!-- Add clear button to reset to defaults -->
@@ -450,66 +454,124 @@
     </div>
 
     <div id="bullish-reversal" class="strategy-pane">
-        <h2>Bullish Reversal</h2>
-        <p style="color: var(--text-secondary); margin-bottom: 20px;">
-            Identify stocks that are reversing from a downtrend with high volume and delivery.<br>
-            <strong>Criteria:</strong> Price Increase today, 3-day decline prior, Volume > 5-day Avg, Delivery >
-            50%.
-        </p>
+    <h2>Bullish Reversal</h2>
+    <p style="color: var(--text-secondary); margin-bottom: 20px;">
+        Identify stocks that are reversing from a downtrend with high volume and delivery.<br>
+        <strong>Criteria:</strong> Price Increase today, 3-day decline prior, Volume > 5-day Avg, Delivery > 50%.
+    </p>
 
-        <form method="GET" action="{{ url_for('strategies') }}" style="margin-bottom: 24px;">
-            <input type="hidden" name="strategy" value="bullish_reversal">
-            <button type="submit" class="btn btn-primary">Find Reversal Stocks</button>
-        </form>
+    <form method="GET" action="{{ url_for('strategies') }}" class="filter-form" style="margin-bottom: 24px; display: flex; gap: 16px; align-items: flex-end;">
+        <input type="hidden" name="strategy" value="bullish_reversal">
 
-        <!-- Cached Results -->
-        {% set reversal_cache = cached_data.get('bullish_reversal') %}
-        {% if reversal_cache and reversal_cache.data %}
-        <div style="margin-bottom: 16px; font-weight: 500;">
-            Found {{ reversal_cache.data|length }} stocks matching Bullish Reversal criteria.
+        <div class="form-group">
+            <label for="min_price">Minimum Price (Close > X)</label>
+            <input type="number" id="min_price" name="min_price" value="{{ request.args.get('min_price', '') }}" step="0.01" placeholder="e.g. 100" style="padding: 8px; border-radius: 6px; border: 1px solid var(--border-color);">
         </div>
-        <div class="table-container">
-            <table>
-                <thead>
-                    <tr>
-                        <th>SC_CODE</th>
-                        <th>Stock Name</th>
-                        <th>Date</th>
-                        <th>Close</th>
-                        <th>Volume</th>
-                        <th>Delv %</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for stock in reversal_cache.data %}
+
+        <button type="submit" class="btn btn-primary">Find Reversal Stocks</button>
+    </form>
+
+    {% set reversal_cache = cached_data.get('bullish_reversal') %}
+    {% if reversal_cache and reversal_cache.data %}
+    <div style="margin-bottom: 16px; font-weight: 500;">
+        Found {{ reversal_cache.data|length }} stocks matching Bullish Reversal criteria.
+    </div>
+    <div class="table-container">
+        <table id="reversalTable">
+            <thead>
+                <tr>
+                    <th>SC_CODE</th>
+                    <th>Stock Name</th>
+                    <th>Date</th>
+                    <th>Close</th>
+                    <th>Volume</th>
+                    <th>Delv %</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for stock in reversal_cache.data %}
+                    {# Filter logic: Only show rows where Close price is >= the input min_price #}
+                    {% set min_p = request.args.get('min_price', '0') | float %}
+                    {% if stock.Close | float >= min_p %}
                     <tr class="clickable-row" onclick='openChartModal("{{ stock.SC_CODE }}", "{{ stock.SC_NAME }}")'>
                         <td>{{ stock.SC_CODE }}</td>
                         <td>{{ stock.SC_NAME }}</td>
                         <td>{{ stock.Date }}</td>
-                        <td>{{ stock.Close }}</td>
+                        <td class="stock-price">{{ stock.Close }}</td>
                         <td>{{ stock.Volume }}</td>
                         <td>{{ stock.Delv_Per }}</td>
                     </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        {% elif reversal_cache is not none %}
-        <div class="empty-state">
-            <p>No stocks found matching the Bullish Reversal criteria.</p>
-        </div>
-        {% elif strategy == 'bullish_reversal' %}
-        <div class="empty-state">
-            <p>No stocks found matching the Bullish Reversal criteria.</p>
-        </div>
-        {% endif %}
+                    {% endif %}
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
+    {% elif reversal_cache is not none %}
+    <div class="empty-state">
+        <p>No stocks found matching the Bullish Reversal criteria.</p>
+    </div>
+    {% endif %}
+</div>
 
     <div id="multi-frame" class="strategy-pane">
-        <h2>Multiple Frame growing</h2>
-        <p style="color: var(--text-secondary);">Strategy logic and results for Multiple Frame growing will appear
-            here.</p>
+    <h2>Multiple Frame Growing</h2>
+    <p style="color: var(--text-secondary); margin-bottom: 20px;">
+        Identify stocks showing consistent growth across multiple timeframes (Short, Medium, and Long term).
+    </p>
+
+    <form method="GET" action="{{ url_for('strategies') }}" style="margin-bottom: 24px;">
+        <input type="hidden" name="strategy" value="multi_frame">
+        <div class="form-group">
+            <label for="mf_min_price">Minimum Price (Close > X)</label>
+            <input type="number" id="mf_min_price" name="min_price" value="{{ request.args.get('min_price', '') }}" step="0.01" placeholder="e.g. 100" style="padding: 8px; border-radius: 6px; border: 1px solid var(--border-color);">
+        </div>
+        <button type="submit" class="btn btn-primary">Find Growing Stocks</button>
+    </form>
+
+    {% set multi_cache = cached_data.get('multi_frame') %}
+    {% if multi_cache and multi_cache.data %}
+    <div style="margin-bottom: 16px; font-weight: 500;">
+        Found {{ multi_cache.data|length }} stocks matching Multi-Frame criteria.
     </div>
+
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>SC_CODE</th>
+                    <th>Stock Name</th>
+                    <th>Closing Price</th>
+                    <th>Closing Date</th>
+                    <th>Trend Status</th>
+                </tr>
+            </thead>
+<tbody>
+                {% for stock in multi_cache.data %}
+                    {# Filter logic: Only show rows where Close price is >= the input min_price #}
+                    {% set min_p = request.args.get('min_price', '0') | float %}
+                    {% if stock.Close | float >= min_p %}
+                    <tr class="clickable-row" onclick='openChartModal("{{ stock.SC_CODE }}", "{{ stock.SC_NAME }}")'>
+                        <td>{{ stock.SC_CODE }}</td>
+                        <td>{{ stock.SC_NAME }}</td>
+                        <td>{{ stock.latest_price }}</td>
+                        <td>{{ stock.latest_date }}</td>
+                        <td><span class="badge">Bullish</span></td>
+                    </tr>
+                    {% endif %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% elif multi_cache is not none %}
+    <div class="empty-state">
+        <p>No stocks found matching the Multi-Frame Growing criteria.</p>
+    </div>
+    {% elif strategy == 'multi_frame' %}
+    <div class="empty-state">
+        <p>Running analysis... please wait or refresh.</p>
+    </div>
+    {% endif %}
+</div>
 
     <div id="min-5-day" class="strategy-pane">
         <h2>Minimum N Day Increase</h2>
@@ -581,12 +643,17 @@
             <strong>Criteria:</strong> Close > Open, High Volume Spike, High Delivery %, Sorted by Delivery Value.
         </p>
 
-        <form method="GET" action="{{ url_for('strategies') }}" style="margin-bottom: 24px;">
+        <form method="GET" action="{{ url_for('strategies') }}" class="filter-form" style="margin-bottom: 24px; display: flex; gap: 16px; align-items: flex-end;">
             <input type="hidden" name="strategy" value="geminis_strategy">
+
+            <div class="form-group">
+                <label for="gemini_min_price">Minimum Price (Close > X)</label>
+                <input type="number" id="gemini_min_price" name="min_price" value="{{ request.args.get('min_price', '') }}" step="0.01" placeholder="e.g. 100" style="padding: 8px; border-radius: 6px; border: 1px solid var(--border-color);">
+            </div>
+
             <button type="submit" class="btn btn-primary">Run Analysis</button>
         </form>
 
-        <!-- Cached Results -->
         {% set geminis_cache = cached_data.get('geminis_strategy') %}
         {% if geminis_cache and geminis_cache.data %}
         <div style="margin-bottom: 16px; font-weight: 500;">
@@ -608,15 +675,19 @@
                 </thead>
                 <tbody>
                     {% for stock in geminis_cache.data %}
-                    <tr class="clickable-row" onclick='openChartModal("{{ stock.SC_CODE }}", "{{ stock.SC_NAME }}")'>
-                        <td>{{ stock.SC_CODE }}</td>
-                        <td>{{ stock.SC_NAME }}</td>
-                        <td>{{ stock.Date }}</td>
-                        <td>{{ stock.Close }}</td>
-                        <td>{{ stock.Volume }}</td>
-                        <td>{{ stock.Delv_Per }}%</td>
-                        <td>{{ stock.Delv_Value }}</td>
-                    </tr>
+                        {# Filter logic: Only show rows where Close price is >= the input min_price #}
+                        {% set min_p = request.args.get('min_price', '0') | float %}
+                        {% if stock.Close | float >= min_p %}
+                        <tr class="clickable-row" onclick='openChartModal("{{ stock.SC_CODE }}", "{{ stock.SC_NAME }}")'>
+                            <td>{{ stock.SC_CODE }}</td>
+                            <td>{{ stock.SC_NAME }}</td>
+                            <td>{{ stock.Date }}</td>
+                            <td>{{ stock.Close }}</td>
+                            <td>{{ stock.Volume }}</td>
+                            <td>{{ stock.Delv_Per }}%</td>
+                            <td>{{ stock.Delv_Value }}</td>
+                        </tr>
+                        {% endif %}
                     {% endfor %}
                 </tbody>
             </table>
@@ -700,6 +771,9 @@
             openStrategy({ currentTarget: document.querySelector("button[onclick*='double-bottom-v1']") }, 'double-bottom-v1');
         } else if (strategy === 'geminis_strategy') {
             openStrategy({ currentTarget: document.querySelector("button[onclick*='geminis-strategy']") }, 'geminis-strategy');
+        }
+        else if (strategy === 'multi_frame') {
+        openStrategy({ currentTarget: document.getElementById('multi-frame-btn') }, 'multi-frame');
         }
         // Add more conditions here as we implement other strategies
     };
@@ -864,5 +938,19 @@
             }
         });
     };
+
+    document.getElementById('min_price_input').addEventListener('input', function(e) {
+    const minPrice = parseFloat(e.target.value) || 0;
+    const rows = document.querySelectorAll('#reversalTable tbody tr');
+
+    rows.forEach(row => {
+        const price = parseFloat(row.querySelector('.stock-price').textContent);
+        if (price >= minPrice) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+});
 </script>
 {% endblock %}

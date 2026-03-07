@@ -12,6 +12,7 @@ from strategies.bullish_reversal import get_bullish_reversal_stocks
 from strategies.double_bottom import get_double_bottom_stocks
 from strategies.double_bottom_v1 import get_double_bottom_stocks as get_double_bottom_v1_stocks, default_params as db_v1_default_params
 from strategies.geminis_strategy import get_geminis_strategy_stocks
+from strategies.multi_frame import get_multi_frame
 
 # Global Strategy Cache (In-Memory)
 # Structure: { user_id: { strategy_name: { 'params': {...}, 'data': [...] } } }
@@ -167,9 +168,12 @@ INDICES_MAP = {
     "India VIX": "^INDIAVIX"
 }
 
+INDICES_Performance = dict.fromkeys(INDICES_MAP, 0)
+data1 = None
 @app.route('/', methods=['GET', 'POST'])
 @login_required
 def index():
+    global data1
     # Filter parameters
     sc_code_filter = request.args.get('sc_code', '').strip()
     sc_name_filter = request.args.get('sc_name', '').strip()
@@ -224,7 +228,10 @@ def index():
         start_idx = (page - 1) * per_page
         
         # Get Data
-        data_sql = f"SELECT * FROM stocks WHERE {where_sql} LIMIT ? OFFSET ?"
+        data_sql = f'''SELECT SC_CODE, SC_NAME, SC_GROUP, SC_TYPE, OPEN, HIGH, LOW, CLOSE, LAST, PREVCLOSE, 
+        NO_TRADES, NO_OF_SHRS, NET_TURNOV, TDCLOINDI,DATE_GEN, "SCRIP CODE", "DELIVERY QTY", "DELIVERY VAL", 
+        "DAYS VOLUME", "DAYS TURNOVER", "DELV. PER.", Date
+        FROM stocks WHERE {where_sql} ORDER BY Date DESC LIMIT ? OFFSET ?'''
         # We need to create a new params list for the data query because it has extra args
         data_params = params + [per_page, start_idx]
         
@@ -239,7 +246,9 @@ def index():
             columns = rows[0].keys()
         else:
             # Fallback to get columns if empty result
-            cursor.execute("SELECT * FROM stocks LIMIT 0")
+            cursor.execute('''SELECT SC_CODE, SC_NAME, SC_GROUP, SC_TYPE, OPEN, HIGH, LOW, CLOSE, LAST, PREVCLOSE, 
+                NO_TRADES, NO_OF_SHRS, NET_TURNOV, TDCLOINDI,DATE_GEN, "SCRIP CODE", "DELIVERY QTY", "DELIVERY VAL", 
+                "DAYS VOLUME", "DAYS TURNOVER", "DELV. PER.", Date FROM stocks LIMIT 0''')
             columns = [description[0] for description in cursor.description]
 
     except Exception as e:
@@ -251,6 +260,30 @@ def index():
     finally:
         conn.close()
 
+    tickers = list(INDICES_MAP.values())
+    if data1 is None:
+        data1 = yf.download(tickers, period="5d", group_by='ticker', auto_adjust=True)
+        print('Running Again')
+    for name, ticker in INDICES_MAP.items():
+        try:
+            # Slicing a MultiIndex DataFrame: data[ticker]
+            # Then we get the 'Close' column
+            if ticker in data1.columns.levels[0]:
+                series = data1[ticker]['Close'].dropna()
+
+                if len(series) >= 2:
+                    prev_close = series.iloc[-2]
+                    curr_close = series.iloc[-1]
+                    change = ((curr_close - prev_close) / prev_close) * 100
+                    INDICES_Performance[name] = change
+                else:
+                    INDICES_Performance[name] = 0.0
+            else:
+                INDICES_Performance[name] = 0.0
+        except Exception as e:
+            print(f"Error for {ticker}: {e}")
+            INDICES_Performance[name] = 0.0
+
     return render_template('index.html', 
                          data=data, 
                          columns=columns,
@@ -261,7 +294,8 @@ def index():
                          page=page,
                          total_pages=total_pages,
                          total_records=total_records,
-                         indices=INDICES_MAP)
+                         indices=INDICES_MAP,
+                         index_performance = INDICES_Performance)
 
 @app.route('/strategies', methods=['GET', 'POST'])
 @login_required
@@ -318,6 +352,8 @@ def strategies():
                  new_results = get_bullish_reversal_stocks()
             elif selected_strategy == 'geminis_strategy':
                 new_results = get_geminis_strategy_stocks()
+            elif selected_strategy == 'multi_frame':
+                new_results = get_multi_frame()
             elif selected_strategy == 'double_bottom':
                 new_results = get_double_bottom_stocks(
                     min_days=params['min_days'], 
@@ -1032,6 +1068,14 @@ def all_sectors_history():
                 
                 # Calculate % change: ((Current - Start) / Start) * 100
                 pct_change = ((aligned_series - start_price) / start_price) * 100
+
+                # Smart Code for change to color the tabs
+                if len(aligned_series) < 2:
+                    continue  # Need at least two points to calculate a change
+                start_price = aligned_series.iloc[-2]
+                current_pct_change = ((aligned_series.iloc[-1] - start_price) / start_price) * 100
+                INDICES_Performance[name] = current_pct_change
+
                 
                 datasets.append({
                     "label": name,
