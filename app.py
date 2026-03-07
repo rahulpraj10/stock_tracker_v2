@@ -1160,7 +1160,7 @@ def stock_history(sc_code):
              SELECT Date, CLOSE 
              FROM stocks 
              WHERE SC_CODE = ? OR SC_CODE = CAST(? AS INTEGER)
-             ORDER BY Date DESC
+             ORDER BY Date ASC
          """
         df = pd.read_sql_query(query, conn, params=(sc_code, sc_code))
 
