@@ -180,11 +180,11 @@ INDICES_MAP = {
 }
 
 INDICES_Performance = dict.fromkeys(INDICES_MAP, 0)
-
-
+data1 = None
 @app.route('/', methods=['GET', 'POST'])
 @login_required
 def index():
+    global data1
     # Filter parameters
     sc_code_filter = request.args.get('sc_code', '').strip()
     sc_name_filter = request.args.get('sc_name', '').strip()
@@ -239,7 +239,10 @@ def index():
         start_idx = (page - 1) * per_page
 
         # Get Data
-        data_sql = f"SELECT * FROM stocks WHERE {where_sql} LIMIT ? OFFSET ?"
+        data_sql = f'''SELECT SC_CODE, SC_NAME, SC_GROUP, SC_TYPE, OPEN, HIGH, LOW, CLOSE, LAST, PREVCLOSE, 
+        NO_TRADES, NO_OF_SHRS, NET_TURNOV, TDCLOINDI,DATE_GEN, "SCRIP CODE", "DELIVERY QTY", "DELIVERY VAL", 
+        "DAYS VOLUME", "DAYS TURNOVER", "DELV. PER.", Date
+        FROM stocks WHERE {where_sql} ORDER BY Date DESC LIMIT ? OFFSET ?'''
         # We need to create a new params list for the data query because it has extra args
         data_params = params + [per_page, start_idx]
 
@@ -254,7 +257,9 @@ def index():
             columns = rows[0].keys()
         else:
             # Fallback to get columns if empty result
-            cursor.execute("SELECT * FROM stocks LIMIT 0")
+            cursor.execute('''SELECT SC_CODE, SC_NAME, SC_GROUP, SC_TYPE, OPEN, HIGH, LOW, CLOSE, LAST, PREVCLOSE, 
+                NO_TRADES, NO_OF_SHRS, NET_TURNOV, TDCLOINDI,DATE_GEN, "SCRIP CODE", "DELIVERY QTY", "DELIVERY VAL", 
+                "DAYS VOLUME", "DAYS TURNOVER", "DELV. PER.", Date FROM stocks LIMIT 0''')
             columns = [description[0] for description in cursor.description]
 
     except Exception as e:
@@ -267,7 +272,9 @@ def index():
         conn.close()
 
     tickers = list(INDICES_MAP.values())
-    data1 = yf.download(tickers, period="5d", group_by='ticker', auto_adjust=True)
+    if data1 is None:
+        data1 = yf.download(tickers, period="5d", group_by='ticker', auto_adjust=True)
+        print('Running Again')
     for name, ticker in INDICES_MAP.items():
         try:
             # Slicing a MultiIndex DataFrame: data[ticker]
@@ -289,18 +296,17 @@ def index():
             INDICES_Performance[name] = 0.0
 
     return render_template('index.html',
-                           data=data,
-                           columns=columns,
-                           sc_code=sc_code_filter,
-                           sc_name=sc_name_filter,
-                           sc_group=sc_group_filter,
-                           date=date_filter,
-                           page=page,
-                           total_pages=total_pages,
-                           total_records=total_records,
-                           indices=INDICES_MAP,
-                           index_performance=INDICES_Performance)
-
+                         data=data,
+                         columns=columns,
+                         sc_code=sc_code_filter,
+                         sc_name=sc_name_filter,
+                         sc_group=sc_group_filter,
+                         date=date_filter,
+                         page=page,
+                         total_pages=total_pages,
+                         total_records=total_records,
+                         indices=INDICES_MAP,
+                         index_performance = INDICES_Performance)
 
 @app.route('/strategies', methods=['GET', 'POST'])
 @login_required
@@ -1094,6 +1100,7 @@ def all_sectors_history():
                 current_pct_change = ((aligned_series.iloc[-1] - start_price) / start_price) * 100
                 INDICES_Performance[name] = current_pct_change
 
+
                 datasets.append({
                     "label": name,
                     "data": [round(val, 2) if not pd.isna(val) else None for val in pct_change.tolist()]
@@ -1153,7 +1160,7 @@ def stock_history(sc_code):
              SELECT Date, CLOSE 
              FROM stocks 
              WHERE SC_CODE = ? OR SC_CODE = CAST(? AS INTEGER)
-             ORDER BY Date DESC
+             ORDER BY Date ASC
          """
         df = pd.read_sql_query(query, conn, params=(sc_code, sc_code))
 

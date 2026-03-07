@@ -48,7 +48,7 @@ def get_multi_frame():
         growth_analysis_df['ParsedDate']
     )
 
-    print(growth_analysis_df[['SC_CODE', 'Date','ParsedDate']].head(4))
+    #print(growth_analysis_df[['SC_CODE', 'Date','ParsedDate']].head(4))
 
     # 3. Sort by SC_CODE and ParsedDate for chronological order per stock
     # growth_analysis_df = growth_analysis_df.sort_values(by=['SC_CODE', 'ParsedDate'])
