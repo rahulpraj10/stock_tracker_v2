@@ -423,21 +423,25 @@
                 </thead>
                 <tbody>
                     {% for stock in v1_cache.data %}
-                    <tr class="clickable-row" onclick='openChartModal("{{ stock.SC_CODE }}", "{{ stock.SC_NAME }}")'>
-                        <td>{{ stock.SC_CODE }}</td>
-                        <td>{{ stock.SC_NAME }}</td>
-                        <td>
-                            <div>{{ stock.Bottom1_Price }}</div>
-                            <div style="font-size: 0.85em; color: var(--text-secondary);">{{ stock.Bottom1_Date }}
-                            </div>
-                        </td>
-                        <td>
-                            <div>{{ stock.Neckline_Price }}</div>
-                        </td>
-                        <td>{{ stock.Bottom2_Date }}</td>
-                        <td>{{ stock.Bottom2_Price }}</td>
-                        <td>{{ stock.Prominence_Pct }}%</td>
-                    </tr>
+                        {# Filter logic: Only show rows where Bottom 2 Price is >= the input min_price #}
+                        {% set min_p = request.args.get('min_price', '0') | float %}
+                        {% if stock.Bottom2_Price | float >= min_p %}
+                        <tr class="clickable-row" onclick='openChartModal("{{ stock.SC_CODE }}", "{{ stock.SC_NAME }}")'>
+                            <td>{{ stock.SC_CODE }}</td>
+                            <td>{{ stock.SC_NAME }}</td>
+                            <td>
+                                <div>{{ stock.Bottom1_Price }}</div>
+                                <div style="font-size: 0.85em; color: var(--text-secondary);">{{ stock.Bottom1_Date }}
+                                </div>
+                            </td>
+                            <td>
+                                <div>{{ stock.Neckline_Price }}</div>
+                            </td>
+                            <td>{{ stock.Bottom2_Date }}</td>
+                            <td>{{ stock.Bottom2_Price }}</td>
+                            <td>{{ stock.Prominence_Pct }}%</td>
+                        </tr>
+                        {% endif %}
                     {% endfor %}
                 </tbody>
             </table>

@@ -180,11 +180,9 @@ INDICES_MAP = {
 }
 
 INDICES_Performance = dict.fromkeys(INDICES_MAP, 0)
-data1 = None
 @app.route('/', methods=['GET', 'POST'])
 @login_required
 def index():
-    global data1
     # Filter parameters
     sc_code_filter = request.args.get('sc_code', '').strip()
     sc_name_filter = request.args.get('sc_name', '').strip()
@@ -272,9 +270,8 @@ def index():
         conn.close()
 
     tickers = list(INDICES_MAP.values())
-    if data1 is None:
-        data1 = yf.download(tickers, period="5d", group_by='ticker', auto_adjust=True)
-        print('Running Again')
+    data1 = _get_all_index_data()
+
     for name, ticker in INDICES_MAP.items():
         try:
             # Slicing a MultiIndex DataFrame: data[ticker]
@@ -485,11 +482,16 @@ def paper_trading():
         cur = conn_orders.cursor()
 
         if is_postgres:
-            cur.execute('SELECT * FROM orders WHERE username = %s ORDER BY created_at DESC', (current_user.id,))
+            cur.execute('SELECT *, FLOOR(RAND() * (100 - 20 + 1)) + 20 AS score FROM orders WHERE username = %s ORDER BY created_at DESC', (current_user.id,))
         else:
-            cur.execute('SELECT * FROM orders WHERE username = ? ORDER BY created_at DESC', (current_user.id,))
+            cur.execute('SELECT *, abs(random() % 100) + 1 AS score FROM orders WHERE username = ? ORDER BY created_at DESC', (current_user.id,))
 
         orders = cur.fetchall()
+        print(len(orders))
+        # Get scores from tinyb,
+        # Run a scan of all unique SC_CODE in orders. Cheeck if all those SC_CODES are present in tiny DB
+        # For code which are not present, call function to generate code and push to tiny db
+        # Then download all score and proceed
         cur.close()
     except Exception as e:
         print(f"Error fetching orders: {e}")
@@ -1051,6 +1053,13 @@ def search_stocks():
 def _get_all_sectors_data(start_date):
     tickers = list(INDICES_MAP.values())
     data = yf.download(tickers, start=start_date, group_by='ticker', auto_adjust=True)
+    return data
+
+@lru_cache(maxsize=32)
+def _get_all_index_data():
+    tickers = list(INDICES_MAP.values())
+    print('Called YF')
+    data = yf.download(tickers, period="5d", group_by='ticker', auto_adjust=True)
     return data
 
 
