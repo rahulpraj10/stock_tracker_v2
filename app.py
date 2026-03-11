@@ -14,6 +14,10 @@ from strategies.double_bottom_v1 import get_double_bottom_stocks as get_double_b
     default_params as db_v1_default_params
 from strategies.geminis_strategy import get_geminis_strategy_stocks
 from strategies.multi_frame import get_multi_frame
+from fundamentals.generate_scores import create_score
+from tinydb import TinyDB, Query
+import numpy as np
+
 
 # Global Strategy Cache (In-Memory)
 # Structure: { user_id: { strategy_name: { 'params': {...}, 'data': [...] } } }
@@ -23,6 +27,21 @@ STRATEGY_CACHE = {}
 # ... (Previous imports remain)
 
 # ... (Previous code remains)
+
+def json_safe(obj):
+    """
+    Recursively transforms a nested dictionary/list to be JSON-compatible.
+    Handles: Timestamps -> Strings, NaNs -> None (null)
+    """
+    if isinstance(obj, dict):
+        return {k: json_safe(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [json_safe(i) for i in obj]
+    elif isinstance(obj, (pd.Timestamp, datetime)):
+        return obj.isoformat()
+    elif isinstance(obj, float) and (np.isnan(obj) or np.isinf(obj)):
+        return None  # JSON doesn't support NaN; 'None' becomes 'null'
+    return obj
 
 def init_db():
     conn = get_orders_db_connection()
@@ -180,11 +199,9 @@ INDICES_MAP = {
 }
 
 INDICES_Performance = dict.fromkeys(INDICES_MAP, 0)
-data1 = None
 @app.route('/', methods=['GET', 'POST'])
 @login_required
 def index():
-    global data1
     # Filter parameters
     sc_code_filter = request.args.get('sc_code', '').strip()
     sc_name_filter = request.args.get('sc_name', '').strip()
@@ -272,9 +289,8 @@ def index():
         conn.close()
 
     tickers = list(INDICES_MAP.values())
-    if data1 is None:
-        data1 = yf.download(tickers, period="5d", group_by='ticker', auto_adjust=True)
-        print('Running Again')
+    data1 = _get_all_index_data()
+
     for name, ticker in INDICES_MAP.items():
         try:
             # Slicing a MultiIndex DataFrame: data[ticker]
@@ -401,6 +417,9 @@ def strategies():
                            params=params)
 
 
+# Initialize TinyDB (adjust path as needed)
+tdb = TinyDB('fundamentals_scores.json')
+ScoreQuery = Query()
 @app.route('/paper_trading', methods=['GET', 'POST'])
 @login_required
 def paper_trading():
@@ -490,11 +509,50 @@ def paper_trading():
             cur.execute('SELECT * FROM orders WHERE username = ? ORDER BY created_at DESC', (current_user.id,))
 
         orders = cur.fetchall()
+        #print(len(orders))
+        # Get scores from tinyb,
+        # Run a scan of all unique SC_CODE in orders. Cheeck if all those SC_CODES are present in tiny DB
+        # For code which are not present, call function to generate code and push to tiny db
+        # Then download all score and proceed
         cur.close()
     except Exception as e:
         print(f"Error fetching orders: {e}")
     finally:
         conn_orders.close()
+
+    # --- TINYDB SCORE LOGIC START ---
+    orders_list = [dict(row) for row in orders]
+    # for row in orders:
+    #     # This converts the sqlite3.Row or Postgres Row to a mutable dict
+    #     orders_list.append(dict(row))
+
+    if orders_list:
+        # 1. Get unique SC_CODEs from the user's orders
+        unique_sc_codes = {order['sc_code'] for order in orders_list}
+
+        # 2. Check TinyDB and generate missing scores
+        for sc in unique_sc_codes:
+            record = tdb.get(ScoreQuery.sc_code == sc)
+
+            if not record:
+                # Call function for missing records
+                new_score, fundamentals_dict = create_score(sc)
+
+                # Sanitize and store in TinyDB
+                # (Assuming json_safe is the helper we discussed earlier)
+                tdb.insert({
+                    'sc_code': sc,
+                    'score': float(new_score),
+                    'data': json_safe(fundamentals_dict),
+                    'last_updated': datetime.now().isoformat()
+                })
+
+        # 3. Update orders_list with actual scores from TinyDB
+        # We perform a second pass to map scores to the display list
+        for order in orders_list:
+            record = tdb.get(ScoreQuery.sc_code == order['sc_code'])
+            order['score'] = record['score'] if record else 0.0
+    # --- TINYDB SCORE LOGIC END ---
 
     # Calculate Portfolio Summary
     total_invested = 0.0
@@ -548,7 +606,7 @@ def paper_trading():
     total_pl_pct = (total_pl / total_invested * 100) if total_invested > 0 else 0.0
 
     return render_template('paper_trading.html',
-                           orders=orders,
+                           orders=orders_list,
                            summary={
                                'total_invested': total_invested,
                                'total_current_value': total_current_value,
@@ -811,6 +869,40 @@ def watchlist():
     finally:
         conn_orders.close()
 
+        # --- TINYDB SCORE LOGIC START ---
+        watch_list = [dict(row) for row in orders]
+        # for row in orders:
+        #     # This converts the sqlite3.Row or Postgres Row to a mutable dict
+        #     orders_list.append(dict(row))
+
+        if watch_list:
+            # 1. Get unique SC_CODEs from the user's orders
+            unique_sc_codes = {order['sc_code'] for order in watch_list}
+
+            # 2. Check TinyDB and generate missing scores
+            for sc in unique_sc_codes:
+                record = tdb.get(ScoreQuery.sc_code == sc)
+
+                if not record:
+                    # Call function for missing records
+                    new_score, fundamentals_dict = create_score(sc)
+
+                    # Sanitize and store in TinyDB
+                    # (Assuming json_safe is the helper we discussed earlier)
+                    tdb.insert({
+                        'sc_code': sc,
+                        'score': float(new_score),
+                        'data': json_safe(fundamentals_dict),
+                        'last_updated': datetime.now().isoformat()
+                    })
+
+            # 3. Update orders_list with actual scores from TinyDB
+            # We perform a second pass to map scores to the display list
+            for order in watch_list:
+                record = tdb.get(ScoreQuery.sc_code == order['sc_code'])
+                order['score'] = record['score'] if record else 0.0
+        # --- TINYDB SCORE LOGIC END ---
+
     # Calculate Portfolio Summary
     total_invested = 0.0
     total_current_value = 0.0
@@ -852,7 +944,7 @@ def watchlist():
     total_pl_pct = (total_pl / total_invested * 100) if total_invested > 0 else 0.0
 
     return render_template('watchlist.html',
-                           orders=orders,
+                           orders=watch_list,
                            summary={
                                'total_invested': total_invested,
                                'total_current_value': total_current_value,
@@ -1051,6 +1143,13 @@ def search_stocks():
 def _get_all_sectors_data(start_date):
     tickers = list(INDICES_MAP.values())
     data = yf.download(tickers, start=start_date, group_by='ticker', auto_adjust=True)
+    return data
+
+@lru_cache(maxsize=32)
+def _get_all_index_data():
+    tickers = list(INDICES_MAP.values())
+    print('Called YF')
+    data = yf.download(tickers, period="5d", group_by='ticker', auto_adjust=True)
     return data
 
 
