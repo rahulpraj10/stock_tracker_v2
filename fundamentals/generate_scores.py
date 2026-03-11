@@ -74,6 +74,45 @@ def company_score(company):
     return scores
 
 
+def get_holding_safe(df, keyword):
+    """Safely finds a column by keyword and converts % strings to float."""
+    # Find all indices where keyword exists in column name
+    indices = [i for i, col in enumerate(df.columns) if keyword.lower() in col.lower()]
+
+    if not indices:
+        return 0.0  # Return 0.0 (or np.nan) if the column is missing
+
+    # Take the first matching column
+    col_data = df.iloc[:, indices[0]]
+
+    # Convert to string, clean %, and convert to float
+    return col_data.astype(str).str.replace("%", "").replace("nan", "0").astype(float)
+
+
+def safe_clean_column(df, keyword, default_val=0.0):
+    """
+    Safely finds a column by keyword, cleans '%' and converts to float.
+    Returns a series of default_val if column is missing.
+    """
+    # 1. Find the column index
+    indices = [i for i, col in enumerate(df.columns) if keyword.lower() in col.lower()]
+
+    if not indices:
+        # If column is missing, return a series of 0.0 or NaN
+        return pd.Series([default_val] * len(df))
+
+    # 2. Extract and clean
+    col_data = df.iloc[:, indices[0]]
+
+    # Convert to string to handle potential mixed types, then clean
+    cleaned = (col_data.astype(str)
+               .str.replace("%", "", regex=False)
+               .str.replace(",", "", regex=False)
+               .replace(['nan', 'None', '-'], '0'))
+
+    # 3. Final conversion to float
+    return pd.to_numeric(cleaned, errors='coerce').fillna(default_val)
+
 
 def create_score(SC):
     link = f"https://www.screener.in/company/{SC}/"
@@ -104,7 +143,9 @@ def create_score(SC):
                                                                                  'Sales' in item]][
         0]]  # pl["Revenue +"]
     features["operating_profit"] = pl.iloc[
-        :, [index for index, item in enumerate(pl.columns) if 'Operating Profit' in item][0]]  # pl["Net Profit +"]
+        :, [[index for index, item in enumerate(pl.columns) if 'Operating Profit' in item] + [index for index, item in
+                                                                                 enumerate(pl.columns) if
+                                                                                 'Financing Profit' in item]][0]]  # pl["Net Profit +"]
     features["net_profit"] = pl.iloc[
         :, [index for index, item in enumerate(pl.columns) if 'Net Profit' in item][0]]  # pl["Net Profit +"]
 
@@ -178,13 +219,10 @@ def create_score(SC):
     sh = shareholding_raw.set_index("Unnamed: 0").T
     sh.index = pd.to_datetime(sh.index, errors="coerce", format='%b %Y')
 
-    sh["Promoters"] = sh.iloc[
-        :, [index for index, item in enumerate(sh.columns) if 'Promoters' in item][0]].str.replace("%", "").astype(
-        float)
-    sh["fii_holding"] = sh.iloc[:, [index for index, item in enumerate(sh.columns) if 'FII' in item][0]].str.replace(
-        "%", "").astype(float)
-    sh["dii_holding"] = sh.iloc[:, [index for index, item in enumerate(sh.columns) if 'DII' in item][0]].str.replace(
-        "%", "").astype(float)
+    sh["Promoters"] = get_holding_safe(sh, 'Promoters')
+    sh["fii_holding"] = get_holding_safe(sh, 'FII')
+    sh["dii_holding"] = get_holding_safe(sh, 'DII')
+    #sh["public_holding"] = get_holding_safe(sh, 'Public')
 
     sh_features = pd.DataFrame(index=sh.index)
     sh_features["promoter_holding"] = sh["Promoters"]
@@ -218,10 +256,13 @@ def create_score(SC):
 
     ROE_years_df.rename(columns={'Return on Equity': 'year', 'Return on Equity.1': 'return_on_equity'}, inplace=True)
 
-    ROE_years_df["return_on_equity"] = ROE_years_df.iloc[
-        :, [index for index, item in enumerate(ROE_years_df.columns) if 'return_on_equity' in item][0]].str.replace("%",
-                                                                                                                    "").astype(
-        float)
+    ROE_years_df = ROE_years_df.fillna(0)
+    print(ROE_years_df)
+    ROE_years_df["return_on_equity"] = safe_clean_column(ROE_years_df, 'return_on_equity')
+    # ROE_years_df["return_on_equity"] = ROE_years_df.iloc[
+    #     :, [index for index, item in enumerate(ROE_years_df.columns) if 'return_on_equity' in item][0]].str.replace("%",
+    #                                                                                                                 "").astype(
+    #     float)
 
     # Make them as dict
     fundamentals_dict = {

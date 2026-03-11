@@ -615,6 +615,20 @@ def paper_trading():
                            })
 
 
+@app.route('/get_fundamental_report/<sc_code>')
+@login_required
+def get_fundamental_report(sc_code):
+    Company = Query()
+    # Fetch the record from TinyDB
+    record = tdb.get(Company.sc_code == sc_code)
+
+    if record and 'data' in record:
+        print('Record is found')
+        data1 = record['data']
+        print(data1)
+        return jsonify(record['data'][sc_code])
+    return jsonify({"error": "No report data found"}), 404
+
 @app.route('/delete_order/<int:order_id>', methods=['POST'])
 @login_required
 def delete_order(order_id):
