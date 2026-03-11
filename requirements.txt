@@ -9,3 +9,4 @@ psycopg2-binary
 scipy
 urllib3
 yfinance
+tinydb
