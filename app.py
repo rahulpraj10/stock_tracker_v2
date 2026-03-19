@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 import pandas as pd
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime, date
 import secrets
 import os
 from functools import lru_cache
@@ -289,7 +289,8 @@ def index():
         conn.close()
 
     tickers = list(INDICES_MAP.values())
-    data1 = _get_all_index_data()
+    today_str = date.today().isoformat()
+    data1 = _get_all_index_data(today_str)
 
     for name, ticker in INDICES_MAP.items():
         try:
@@ -331,6 +332,9 @@ def strategies():
 
     # Initialize cache for user if not exists
     user_id = current_user.id
+    if 'cached_data' not in session:
+        session['cached_data'] = {}
+
     if user_id not in STRATEGY_CACHE:
         STRATEGY_CACHE[user_id] = {}
 
@@ -377,25 +381,50 @@ def strategies():
             if selected_strategy == 'min_increase':
                 new_results = get_min_increase_stocks(params['days'])
             elif selected_strategy == 'bullish_reversal':
-                new_results = get_bullish_reversal_stocks()
+                if 'bullish_reversal' not in session['cached_data']:
+                    new_results = get_bullish_reversal_stocks()
+                    temp_cache = session['cached_data']
+                    temp_cache['bullish_reversal'] = {'data': new_results}
+                    session['cached_data'] = temp_cache
+                    session.permanent = False  # Cache expires when browser closes
             elif selected_strategy == 'geminis_strategy':
-                new_results = get_geminis_strategy_stocks()
+                if 'geminis_strategy' not in session['cached_data']:
+                    new_results = get_geminis_strategy_stocks()
+                    temp_cache = session['cached_data']
+                    temp_cache['bullish_reversal'] = {'data': new_results}
+                    session['cached_data'] = temp_cache
+                    session.permanent = False  # Cache expires when browser closes
             elif selected_strategy == 'multi_frame':
-                new_results = get_multi_frame()
+                if 'multi_frame' not in session['cached_data']:
+                    new_results = get_multi_frame()
+                    temp_cache = session['cached_data']
+                    temp_cache['multi_frame'] = {'data': new_results}
+                    session['cached_data'] = temp_cache
+                    session.permanent = False  # Cache expires when browser closes
             elif selected_strategy == 'double_bottom':
-                new_results = get_double_bottom_stocks(
-                    min_days=params['min_days'],
-                    max_days=params['max_days'],
-                    tolerance_pct=params['tolerance'],
-                    lookback_days=params['lookback'],
-                    peak_prominence_pct=params['prominence']
-                )
+                if 'double_bottom' not in session['cached_data']:
+                    new_results = get_double_bottom_stocks(
+                        min_days=params['min_days'],
+                        max_days=params['max_days'],
+                        tolerance_pct=params['tolerance'],
+                        lookback_days=params['lookback'],
+                        peak_prominence_pct=params['prominence']
+                    )
+                    temp_cache = session['cached_data']
+                    temp_cache['double_bottom'] = {'data': new_results}
+                    session['cached_data'] = temp_cache
+                    session.permanent = False  # Cache expires when browser closes
             elif selected_strategy == 'double_bottom_v1':
-                df_results = get_double_bottom_v1_stocks(params=params)
-                if not df_results.empty:
-                    new_results = df_results.to_dict('records')
-                else:
-                    new_results = []
+                if 'double_bottom_v1' not in session['cached_data']:
+                    df_results = get_double_bottom_v1_stocks(params=params)
+                    if not df_results.empty:
+                        new_results = df_results.to_dict('records')
+                    else:
+                        new_results = []
+                    temp_cache = session['cached_data']
+                    temp_cache['double_bottom_v1'] = {'data': new_results}
+                    session['cached_data'] = temp_cache
+                    session.permanent = False  # Cache expires when browser closes
 
             # Update Cache
             STRATEGY_CACHE[user_id][selected_strategy] = {
@@ -412,8 +441,8 @@ def strategies():
 
     return render_template('strategies.html',
                            strategy=selected_strategy,
-                           results=current_results,
-                           cached_data=cached_data,
+                           #results=current_results,
+                           cached_data=session.get('cached_data', {}),
                            params=params)
 
 
@@ -1159,8 +1188,8 @@ def _get_all_sectors_data(start_date):
     data = yf.download(tickers, start=start_date, group_by='ticker', auto_adjust=True)
     return data
 
-@lru_cache(maxsize=32)
-def _get_all_index_data():
+@lru_cache(maxsize=5)
+def _get_all_index_data(start_date):
     tickers = list(INDICES_MAP.values())
     print('Called YF')
     data = yf.download(tickers, period="5d", group_by='ticker', auto_adjust=True)
