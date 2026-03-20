@@ -407,7 +407,7 @@ def strategies():
                 if 'geminis_strategy' not in session['cached_data']:
                     new_results = get_geminis_strategy_stocks()
                     temp_cache = session['cached_data']
-                    temp_cache['bullish_reversal'] = {'data': new_results}
+                    temp_cache['geminis_strategy'] = {'data': new_results}
                     session['cached_data'] = temp_cache
                     session.permanent = False  # Cache expires when browser closes
             elif selected_strategy == 'multi_frame':
