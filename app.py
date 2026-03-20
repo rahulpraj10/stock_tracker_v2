@@ -17,7 +17,9 @@ from strategies.multi_frame import get_multi_frame
 from fundamentals.generate_scores import create_score
 from tinydb import TinyDB, Query
 import numpy as np
+import pytz
 
+IST = pytz.timezone('Asia/Kolkata')
 
 # Global Strategy Cache (In-Memory)
 # Structure: { user_id: { strategy_name: { 'params': {...}, 'data': [...] } } }
@@ -289,7 +291,21 @@ def index():
         conn.close()
 
     tickers = list(INDICES_MAP.values())
-    today_str = date.today().isoformat()
+    #today_str = date.today().isoformat()
+
+    def get_smart_data():
+        now_ist = datetime.now(IST)
+
+        if now_ist.hour < 16:
+            # Before 4 PM: Use yesterday's date as the cache key
+            effective_date = (now_ist - timedelta(days=1)).date()
+        else:
+            # After 4 PM: Use today's date as the cache key
+            effective_date = now_ist.date()
+        return effective_date
+
+    today_str =get_smart_data()
+    print('Today str', today_str)
     data1 = _get_all_index_data(today_str)
 
     for name, ticker in INDICES_MAP.items():

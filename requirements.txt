@@ -10,3 +10,4 @@ scipy
 urllib3
 yfinance
 tinydb
+pytz
