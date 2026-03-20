@@ -11,5 +11,4 @@ urllib3
 yfinance
 tinydb
 pytz
-os
 flask_session
