@@ -18,6 +18,8 @@ from fundamentals.generate_scores import create_score
 from tinydb import TinyDB, Query
 import numpy as np
 import pytz
+import time
+from flask_session import Session
 
 IST = pytz.timezone('Asia/Kolkata')
 
@@ -26,9 +28,30 @@ IST = pytz.timezone('Asia/Kolkata')
 STRATEGY_CACHE = {}
 
 
-# ... (Previous imports remain)
+def even_day_cleanup(session_folder, max_age_hours=24):
+    now_ist = datetime.now(IST)
+    current_day = now_ist.day
 
-# ... (Previous code remains)
+    # Logic: Only run if the day is an even number (2, 4, 6...)
+    if current_day % 2 == 0:
+        print(f"--- Periodic Cleanup Triggered (Day {current_day} is Even) ---")
+
+        if not os.path.exists(session_folder):
+            return
+
+        now_timestamp = time.time()
+        cutoff = now_timestamp - (max_age_hours * 3600)
+
+        for filename in os.listdir(session_folder):
+            file_path = os.path.join(session_folder, filename)
+            if os.path.isfile(file_path):
+                # Delete files older than your threshold (e.g., 24 hours)
+                if os.path.getmtime(file_path) < cutoff:
+                    try:
+                        os.remove(file_path)
+                    except OSError:
+                        pass
+
 
 def json_safe(obj):
     """
@@ -114,6 +137,14 @@ init_db()
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here_change_in_production'  # For development
+
+# --- The "Clean" Filesystem Config ---
+app.config["SESSION_TYPE"] = "filesystem"
+app.config["SESSION_FILE_DIR"] = "./flask_session" # Folder for the data
+app.config["SESSION_PERMANENT"] = False           # Delete when browser closes
+app.config["SESSION_USE_SIGNER"] = True           # Extra security
+Session(app)
+
 app.permanent_session_lifetime = timedelta(minutes=5)
 
 # Flask-Login Configuration
@@ -155,6 +186,12 @@ def add_cache_control_headers(response):
         response.headers['Pragma'] = 'no-cache'
         response.headers['Expires'] = '0'
     return response
+
+@app.before_request
+def handle_maintenance():
+    # This runs before every request, but the "if % 2 == 0"
+    # ensures it only actually does work on even days.
+    even_day_cleanup("./flask_session", max_age_hours=24)
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -403,6 +440,7 @@ def strategies():
                     temp_cache['bullish_reversal'] = {'data': new_results}
                     session['cached_data'] = temp_cache
                     session.permanent = False  # Cache expires when browser closes
+                    session.modified = True
             elif selected_strategy == 'geminis_strategy':
                 if 'geminis_strategy' not in session['cached_data']:
                     new_results = get_geminis_strategy_stocks()
@@ -410,6 +448,7 @@ def strategies():
                     temp_cache['geminis_strategy'] = {'data': new_results}
                     session['cached_data'] = temp_cache
                     session.permanent = False  # Cache expires when browser closes
+                    session.modified = True
             elif selected_strategy == 'multi_frame':
                 if 'multi_frame' not in session['cached_data']:
                     new_results = get_multi_frame()
@@ -417,6 +456,7 @@ def strategies():
                     temp_cache['multi_frame'] = {'data': new_results}
                     session['cached_data'] = temp_cache
                     session.permanent = False  # Cache expires when browser closes
+                    session.modified = True
             elif selected_strategy == 'double_bottom':
                 if 'double_bottom' not in session['cached_data']:
                     new_results = get_double_bottom_stocks(
@@ -430,6 +470,7 @@ def strategies():
                     temp_cache['double_bottom'] = {'data': new_results}
                     session['cached_data'] = temp_cache
                     session.permanent = False  # Cache expires when browser closes
+                    session.modified = True
             elif selected_strategy == 'double_bottom_v1':
                 if 'double_bottom_v1' not in session['cached_data']:
                     df_results = get_double_bottom_v1_stocks(params=params)
@@ -441,6 +482,7 @@ def strategies():
                     temp_cache['double_bottom_v1'] = {'data': new_results}
                     session['cached_data'] = temp_cache
                     session.permanent = False  # Cache expires when browser closes
+                    session.modified = True
 
             # Update Cache
             STRATEGY_CACHE[user_id][selected_strategy] = {
