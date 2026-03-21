@@ -71,6 +71,37 @@
     .order-card.score-yellow:hover { border-color: #f59e0b; }
     .order-card.score-red:hover { border-color: #ef4444; }
 
+    .report-section {
+        margin-bottom: 20px;
+    }
+
+    .report-section h5 {
+        font-size: 14px;
+        color: var(--primary-color);
+        margin-bottom: 8px;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .horizontal-slider {
+        display: flex;
+        overflow-x: auto;
+        gap: 12px;
+        padding-bottom: 10px;
+        scrollbar-width: thin;
+    }
+
+    .data-card {
+        min-width: 150px;
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        padding: 10px;
+        border-radius: 8px;
+        font-size: 11px;
+    }
+
+    .data-card b { display: block; margin-bottom: 4px; color: var(--text-main); }
+
+
     .order-info {
         flex: 1;
     }
@@ -303,8 +334,17 @@
     </div>
 
     <div class="right-panel" style="display: flex; flex-direction: column;">
-        <div style="flex: 1; min-height: 0;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <h4 id="panel-title">Stock Performance</h4>
+            <button id="toggle-report-btn" class="btn btn-primary"
+                    style="display:none; padding: 4px 12px; font-size: 12px;" onclick="toggleView()">Reports</button>
+        </div>
+        <div id="chart-view" style="flex: 1; min-height: 0;">
             <canvas id="valueChart"></canvas>
+        </div>
+        <div id="report-view" style="display: none; flex: 1; overflow-y: auto;">
+            <div id="report-sliders-container">
+                </div>
         </div>
         <div id="stats-container" style="
             margin-top: 16px; 
@@ -338,6 +378,8 @@
 
 <script>
     let chartInstance = null;
+    let currentScCode = null;
+    let isReportView = false;
 
     async function loadChart(orderId, stockName) {
         try {
@@ -402,9 +444,133 @@
                 statsContainer.style.opacity = '0';
             }
 
+            const orderRecord = {{ orders|tojson }}.find(o => o.id === orderId);
+            currentScCode = orderRecord.sc_code;
+            document.getElementById('toggle-report-btn').style.display = 'block';
+
+            // Reset view to Chart if it was on Report
+            showChartView();
+
         } catch (error) {
             console.error('Error loading chart:', error);
             alert('Failed to load chart data.');
+        }
+    }
+
+    function toggleView() {
+        if (isReportView) showChartView();
+        else showReportView();
+    }
+
+    function showChartView() {
+        document.getElementById('chart-view').style.display = 'block';
+        document.getElementById('report-view').style.display = 'none';
+        document.getElementById('toggle-report-btn').textContent = 'Reports';
+        isReportView = false;
+    }
+
+    async function showReportView() {
+        if (!currentScCode) {
+            console.error("No SC Code selected");
+            return;
+        }
+
+        const container = document.getElementById('report-sliders-container');
+        container.innerHTML = '<p style="font-size:12px; padding:20px;">Generating tables...</p>';
+
+        document.getElementById('chart-view').style.display = 'none';
+        document.getElementById('report-view').style.display = 'block';
+        const stats = document.getElementById('stats-container');
+        if (stats) stats.style.display = 'none';
+
+        document.getElementById('toggle-report-btn').textContent = 'Back to Chart';
+        isReportView = true;
+
+        try {
+            console.log("Fetching report for:", currentScCode);
+            const response = await fetch(`/get_fundamental_report/${currentScCode}`);
+            const data = await response.json();
+
+            console.log("Data received from TinyDB:", data);
+            if (data.error || Object.keys(data).length === 0) {
+                container.innerHTML = `<p style="padding:20px;">No report data found for ${currentScCode}.</p>`;
+                return;
+            }
+
+            container.innerHTML = '';
+
+            // Iterate through each report type (e.g., 'qoq_features', 'bs_features')
+            Object.entries(data).forEach(([reportName, rows]) => {
+                if (!Array.isArray(rows) || rows.length === 0) {
+                    console.warn(`Skipping ${reportName}: Not an array or empty`);
+                    return;
+                }
+                if (Array.isArray(rows) && rows.length > 0) {
+                    const section = document.createElement('div');
+                    section.style.marginBottom = '30px';
+
+                    // Title for the specific report
+                    const title = reportName.replace(/_/g, ' ').toUpperCase();
+                    section.innerHTML = `<h5 style="font-size:14px; color:var(--primary-color); border-bottom:2px solid var(--border-color); margin-bottom:12px; padding-bottom:5px;">${title}</h5>`;
+
+                    // Create a scrollable wrapper for the table
+                    const tableWrapper = document.createElement('div');
+                    tableWrapper.style.overflowX = 'auto';
+                    tableWrapper.style.borderRadius = '8px';
+                    tableWrapper.style.border = '1px solid var(--border-color)';
+
+                    // Build the Table
+                    const table = document.createElement('table');
+                    table.style.width = '100%';
+                    table.style.borderCollapse = 'collapse';
+                    table.style.fontSize = '11px';
+                    table.style.backgroundColor = 'var(--card-bg)';
+
+                    // Header Row (Keys from the first record)
+                    const thead = document.createElement('thead');
+                    const headerRow = document.createElement('tr');
+                    headerRow.style.backgroundColor = 'rgba(0,0,0,0.05)';
+
+                    Object.keys(rows[0]).forEach(key => {
+                        const th = document.createElement('th');
+                        th.textContent = key.replace(/_/g, ' ').toUpperCase();
+                        th.style.padding = '10px';
+                        th.style.textAlign = 'left';
+                        th.style.borderBottom = '2px solid var(--border-color)';
+                        th.style.whiteSpace = 'nowrap';
+                        headerRow.appendChild(th);
+                    });
+                    thead.appendChild(headerRow);
+                    table.appendChild(thead);
+
+                    // Data Rows
+                    const tbody = document.createElement('tbody');
+                    rows.forEach((row, index) => {
+                        const tr = document.createElement('tr');
+                        if (index % 2 === 0) tr.style.backgroundColor = 'rgba(0,0,0,0.02)';
+
+                        Object.values(row).forEach(value => {
+                            const td = document.createElement('td');
+                            // Format numbers to 2 decimal places if they are floats
+                            td.textContent = (typeof value === 'number' && !Number.isInteger(value))
+                                             ? value.toFixed(2) : value;
+                            td.style.padding = '10px';
+                            td.style.borderBottom = '1px solid var(--border-color)';
+                            td.style.whiteSpace = 'nowrap';
+                            tr.appendChild(td);
+                        });
+                        tbody.appendChild(tr);
+                    });
+                    table.appendChild(tbody);
+
+                    tableWrapper.appendChild(table);
+                    section.appendChild(tableWrapper);
+                    container.appendChild(section);
+                }
+            });
+        } catch (e) {
+            console.error("Report Error:", e);
+            container.innerHTML = '<p style="padding:20px;">Report data is not available for this stock.</p>';
         }
     }
 </script>
