@@ -28,6 +28,17 @@ IST = pytz.timezone('Asia/Kolkata')
 STRATEGY_CACHE = {}
 
 
+def format_data_for_render(data):
+    for stock_code, details in data.items():
+        # Access the list of features
+        for df in details.keys():
+            for record in details[df]:
+                # Check if 'Date' exists and is a string
+                if 'Date' in record and isinstance(record['Date'], str):
+                    # Slice the first 10 characters "YYYY-MM-DD"
+                    record['Date'] = record['Date'][:10]
+    return data
+
 def even_day_cleanup(session_folder, max_age_hours=24):
     now_ist = datetime.now(IST)
     current_day = now_ist.day
@@ -713,7 +724,10 @@ def get_fundamental_report(sc_code):
         print('Record is found')
         data1 = record['data']
         print(data1)
-        return jsonify(record['data'][sc_code])
+        formatted_json = format_data_for_render(data1)
+        jsonified_data = jsonify(formatted_json[sc_code])
+
+        return jsonified_data
     return jsonify({"error": "No report data found"}), 404
 
 @app.route('/delete_order/<int:order_id>', methods=['POST'])
