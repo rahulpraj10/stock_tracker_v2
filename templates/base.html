@@ -372,6 +372,15 @@
                     </svg>
                     <span class="nav-text">Paper Trading</span>
                 </a>
+                <a href="{{ url_for('sold_orders') }}"
+                    class="nav-link {% if request.path == '/sold_orders' %}active{% endif %}" title="Sold Orders">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                        class="nav-icon" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="12" y1="1" x2="12" y2="23"></line>
+                        <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                    </svg>
+                    <span class="nav-text">Sold Orders</span>
+                </a>
                 <a href="{{ url_for('watchlist') }}"
                     class="nav-link {% if request.path == '/watchlist' %}active{% endif %}" title="Watchlist">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"

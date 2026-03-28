@@ -1,0 +1,255 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    .paper-trading-container {
+        display: flex;
+        gap: 24px;
+        background-color: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 24px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+
+    .left-panel {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+        min-width: 300px;
+    }
+
+    .right-panel {
+        flex: 2;
+        min-height: 400px;
+    }
+
+    .order-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        height: 60vh;
+        overflow-y: auto;
+        padding-right: 4px;
+    }
+
+    .order-card {
+        background-color: var(--bg-color);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        padding: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .order-card:hover {
+        border-color: var(--primary-color);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    }
+
+    .score-green { border-left: 5px solid #10b981 !important; background-color: rgba(16, 185, 129, 0.05) !important; }
+    .score-yellow { border-left: 5px solid #f59e0b !important; background-color: rgba(245, 158, 11, 0.05) !important; }
+    .score-red { border-left: 5px solid #ef4444 !important; background-color: rgba(239, 68, 68, 0.05) !important; }
+
+    .order-info { flex: 1; }
+
+    .order-card h4 {
+        margin: 0 0 4px 0;
+        font-size: 14px;
+        color: var(--text-main);
+        font-weight: 600;
+    }
+
+    .order-card p {
+        margin: 0;
+        font-size: 12px;
+        color: var(--text-secondary);
+        line-height: 1.4;
+    }
+
+    /* Responsive Design */
+    @media (max-width: 1024px) {
+        .paper-trading-container { flex-direction: column; }
+        .left-panel, .right-panel { width: 100%; min-width: 0; }
+        .order-list { height: 300px; }
+        .right-panel { min-height: 350px; border-top: 1px solid var(--border-color); padding-top: 24px; }
+    }
+</style>
+
+{% if summary %}
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;">
+    <div class="card" style="margin-bottom: 0; padding: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+        <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 4px;">Total Invested</div>
+        <div style="font-size: 20px; font-weight: 600; color: var(--text-main);">₹{{ "%.2f"|format(summary.total_invested) }}</div>
+    </div>
+    <div class="card" style="margin-bottom: 0; padding: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+        <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 4px;">Total Returned</div>
+        <div style="font-size: 20px; font-weight: 600; color: var(--text-main);">₹{{ "%.2f"|format(summary.total_returned) }}</div>
+    </div>
+    <div class="card" style="margin-bottom: 0; padding: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+        <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 4px;">Realized P/L</div>
+        <div style="font-size: 20px; font-weight: 600; color: {% if summary.total_pl >= 0 %}#10b981{% else %}#ef4444{% endif %};">
+            {{ "+" if summary.total_pl >= 0 else "" }}₹{{ "%.2f"|format(summary.total_pl) }}
+        </div>
+    </div>
+    <div class="card" style="margin-bottom: 0; padding: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+        <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 4px;">Total Return</div>
+        <div style="font-size: 20px; font-weight: 600; color: {% if summary.total_pl_pct >= 0 %}#10b981{% else %}#ef4444{% endif %};">
+            {{ "+" if summary.total_pl_pct >= 0 else "" }}{{ "%.2f"|format(summary.total_pl_pct) }}%
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="paper-trading-container">
+    <div class="left-panel">
+        <div class="filter-section" style="height: 100%; display: flex; flex-direction: column; margin-bottom: 0;">
+            <h3 style="margin-bottom: 12px;">Sold Orders</h3>
+            <div class="order-list">
+                {% if orders %}
+                {% for order in orders %}
+                    {% set score_class = "" %}
+                    {% if order.pnl_pct > 0 %}
+                        {% set score_class = "score-green" %}
+                    {% elif order.pnl_pct < 0 %}
+                        {% set score_class = "score-red" %}
+                    {% else %}
+                        {% set score_class = "score-yellow" %}
+                    {% endif %}
+
+                    <div class="order-card {{ score_class }}" onclick="loadChart({{ order.id }}, '{{ order.sc_name }}')">
+                        <div class="order-info">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <h4>{{ order.sc_name }} ({{ order.sc_code }})</h4>
+                                <span style="font-size: 11px; font-weight: 600; color: {% if order.pnl >= 0 %}#10b981{% else %}#ef4444{% endif %};">
+                                    {{ "+" if order.pnl >= 0 else "" }}{{ "%.2f"|format(order.pnl) }} ({{ "%.2f"|format(order.pnl_pct) }}%)
+                                </span>
+                            </div>
+                            <p><b>Bought:</b> {{ order.order_date }} @ ₹{{ "%.2f"|format(order.purchase_price) }}</p>
+                            <p><b>Sold:</b> {{ order.sell_date }} @ ₹{{ "%.2f"|format(order.sell_price) if order.sell_price else "0.00" }}</p>
+                            <p>Qty: {{ order.quantity }}</p>
+                        </div>
+                    </div>
+                {% endfor %}
+                {% else %}
+                <p class="no-data">No sold orders yet.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="right-panel" style="display: flex; flex-direction: column;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <h4 id="panel-title">Stock Performance</h4>
+        </div>
+        <div id="chart-view" style="flex: 1; min-height: 0;">
+            <canvas id="valueChart"></canvas>
+        </div>
+        
+        <div id="stats-container" style="
+            margin-top: 16px; 
+            padding-top: 16px; 
+            border-top: 1px solid var(--border-color); 
+            display: flex; 
+            justify-content: space-around; 
+            align-items: center;
+            opacity: 0;
+            transition: opacity 0.3s;
+        ">
+            <div style="text-align: center;">
+                <div style="font-size: 12px; color: var(--text-secondary);">Purchase Price</div>
+                <div id="stat-purchase" style="font-size: 16px; font-weight: 600;">-</div>
+            </div>
+            <div style="text-align: center;">
+                <div style="font-size: 12px; color: var(--text-secondary);">Current Price</div>
+                <div id="stat-current" style="font-size: 16px; font-weight: 600;">-</div>
+            </div>
+            <div style="text-align: center;">
+                <div style="font-size: 12px; color: var(--text-secondary);">Change</div>
+                <div id="stat-change" style="font-size: 16px; font-weight: 600;">-</div>
+            </div>
+            <div style="text-align: center;">
+                <div style="font-size: 12px; color: var(--text-secondary);">Profit/Loss</div>
+                <div id="stat-pl" style="font-size: 16px; font-weight: 600;">-</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let chartInstance = null;
+    let currentScCode = null;
+
+    async function loadChart(orderId, stockName) {
+        try {
+            const response = await fetch(`/order_chart_data/${orderId}`);
+            if (!response.ok) throw new Error('Failed to fetch data');
+
+            const data = await response.json();
+
+            // Update Chart
+            const ctx = document.getElementById('valueChart').getContext('2d');
+
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.dates,
+                    datasets: [{
+                        label: `Investment Value: ${stockName}`,
+                        data: data.values,
+                        borderColor: '#58a6ff',
+                        backgroundColor: 'rgba(88, 166, 255, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { labels: { color: '#6b7280' } },
+                        title: { display: true, text: 'Value Over Time (Up to Present)', color: '#6b7280' }
+                    },
+                    scales: {
+                        x: { ticks: { color: '#9ca3af' }, grid: { color: '#f3f4f6' } },
+                        y: { ticks: { color: '#9ca3af' }, grid: { color: '#f3f4f6' } }
+                    }
+                }
+            });
+
+            // Update Stats
+            const statsContainer = document.getElementById('stats-container');
+            if (data.stats) {
+                document.getElementById('stat-purchase').textContent = '₹' + data.stats.purchase_price.toFixed(2);
+                document.getElementById('stat-current').textContent = '₹' + data.stats.current_price.toFixed(2);
+
+                const changeEl = document.getElementById('stat-change');
+                const changeVal = data.stats.pct_change;
+                changeEl.textContent = (changeVal >= 0 ? '+' : '') + changeVal.toFixed(2) + '%';
+                changeEl.style.color = changeVal >= 0 ? '#10b981' : '#ef4444'; // Green or Red
+
+                const plEl = document.getElementById('stat-pl');
+                const plVal = data.stats.profit_loss;
+                plEl.textContent = (plVal >= 0 ? '+' : '') + '₹' + plVal.toFixed(2);
+                plEl.style.color = plVal >= 0 ? '#10b981' : '#ef4444';
+
+                statsContainer.style.opacity = '1';
+            } else {
+                statsContainer.style.opacity = '0';
+            }
+        } catch (error) {
+            console.error('Error loading chart:', error);
+            alert('Failed to load chart data.');
+        }
+    }
+</script>
+{% endblock %}
