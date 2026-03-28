@@ -97,6 +97,11 @@ def init_db():
                         sc_name TEXT,
                         quantity INTEGER,
                         order_date TEXT,
+                        attrib_01 VARCHAR(50),
+                        attrib_02 VARCHAR(50),
+                        attrib_03 VARCHAR(50),
+                        attrib_04 VARCHAR(50),
+                        attrib_05 VARCHAR(50),
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 ''')
@@ -108,6 +113,11 @@ def init_db():
                         sc_name TEXT,
                         quantity INTEGER,
                         order_date TEXT,
+                        attrib_01 VARCHAR(50),
+                        attrib_02 VARCHAR(50),
+                        attrib_03 VARCHAR(50),
+                        attrib_04 VARCHAR(50),
+                        attrib_05 VARCHAR(50),
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 ''')
@@ -121,6 +131,11 @@ def init_db():
                         sc_name TEXT,
                         quantity INTEGER,
                         order_date TEXT,
+                        attrib_01 VARCHAR(50),
+                        attrib_02 VARCHAR(50),
+                        attrib_03 VARCHAR(50),
+                        attrib_04 VARCHAR(50),
+                        attrib_05 VARCHAR(50),
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 ''')
@@ -132,6 +147,11 @@ def init_db():
                         sc_name TEXT,
                         quantity INTEGER,
                         order_date TEXT,
+                        attrib_01 VARCHAR(50),
+                        attrib_02 VARCHAR(50),
+                        attrib_03 VARCHAR(50),
+                        attrib_04 VARCHAR(50),
+                        attrib_05 VARCHAR(50),
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 ''')
