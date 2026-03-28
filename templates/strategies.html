@@ -269,7 +269,7 @@
             </thead>
             <tbody>
                 {% for stock in db_cache.data %}
-                <tr class="clickable-row" onclick='openChartModal("{{ stock.SC_CODE }}", "{{ stock.SC_NAME }}")'>
+                <tr class="clickable-row" onclick='openChartModal("{{ stock.SC_CODE }}", "{{ stock.SC_NAME }}", "Double Bottom Pattern")'>
                     <td>{{ stock.SC_CODE }}</td>
                     <td>{{ stock.SC_NAME }}</td>
                     <td>
@@ -426,7 +426,7 @@
                         {# Filter logic: Only show rows where Bottom 2 Price is >= the input min_price #}
                         {% set min_p = request.args.get('min_price', '0') | float %}
                         {% if stock.Bottom2_Price | float >= min_p %}
-                        <tr class="clickable-row" onclick='openChartModal("{{ stock.SC_CODE }}", "{{ stock.SC_NAME }}")'>
+                        <tr class="clickable-row" onclick='openChartModal("{{ stock.SC_CODE }}", "{{ stock.SC_NAME }}", "Double Bottom Indicator v1")'>
                             <td>{{ stock.SC_CODE }}</td>
                             <td>{{ stock.SC_NAME }}</td>
                             <td>
@@ -497,7 +497,7 @@
                     {# Filter logic: Only show rows where Close price is >= the input min_price #}
                     {% set min_p = request.args.get('min_price', '0') | float %}
                     {% if stock.Close | float >= min_p %}
-                    <tr class="clickable-row" onclick='openChartModal("{{ stock.SC_CODE }}", "{{ stock.SC_NAME }}")'>
+                    <tr class="clickable-row" onclick='openChartModal("{{ stock.SC_CODE }}", "{{ stock.SC_NAME }}", "Bullish Reversal")'>
                         <td>{{ stock.SC_CODE }}</td>
                         <td>{{ stock.SC_NAME }}</td>
                         <td>{{ stock.Date }}</td>
@@ -554,7 +554,7 @@
                     {# Filter logic: Only show rows where Close price is >= the input min_price #}
                     {% set min_p = request.args.get('min_price', '0') | float %}
                     {% if stock.Close | float >= min_p %}
-                    <tr class="clickable-row" onclick='openChartModal("{{ stock.SC_CODE }}", "{{ stock.SC_NAME }}")'>
+                    <tr class="clickable-row" onclick='openChartModal("{{ stock.SC_CODE }}", "{{ stock.SC_NAME }}", "Multiple Frame Growing")'>
                         <td>{{ stock.SC_CODE }}</td>
                         <td>{{ stock.SC_NAME }}</td>
                         <td>{{ stock.latest_price }}</td>
@@ -617,7 +617,7 @@
                 </thead>
                 <tbody>
                     {% for stock in min_inc_cache.data %}
-                    <tr class="clickable-row" onclick='openChartModal("{{ stock.SC_CODE }}", "{{ stock.SC_NAME }}")'>
+                    <tr class="clickable-row" onclick='openChartModal("{{ stock.SC_CODE }}", "{{ stock.SC_NAME }}", "Minimum N Day Increase")'>
                         <td>{{ stock.SC_CODE }}</td>
                         <td>{{ stock.SC_NAME }}</td>
                         <td style="font-family: monospace;">{{ stock.Volumes | join(' &rarr; ') }}</td>
@@ -682,7 +682,7 @@
                         {# Filter logic: Only show rows where Close price is >= the input min_price #}
                         {% set min_p = request.args.get('min_price', '0') | float %}
                         {% if stock.Close | float >= min_p %}
-                        <tr class="clickable-row" onclick='openChartModal("{{ stock.SC_CODE }}", "{{ stock.SC_NAME }}")'>
+                        <tr class="clickable-row" onclick='openChartModal("{{ stock.SC_CODE }}", "{{ stock.SC_NAME }}", "Geminis Strategy")'>
                             <td>{{ stock.SC_CODE }}</td>
                             <td>{{ stock.SC_NAME }}</td>
                             <td>{{ stock.Date }}</td>
@@ -718,7 +718,9 @@
     <div class="chart-modal">
         <div class="modal-header">
             <div class="modal-title" id="chartModalTitle">Stock History</div>
-            <div>
+            <div style="display: flex; gap: 8px;">
+                <button id="addToOrderBtn" class="btn btn-outline" onclick="addToOrder()"
+                    style="height: 32px; padding: 0 12px; font-size: 12px; background: white; color: var(--primary-color); border: 1px solid var(--primary-color); cursor: pointer; border-radius: 4px;">Add to Order</button>
                 <button id="addToWatchlistBtn" class="btn btn-primary" onclick="addToWatchlist()"
                     style="margin-right: 12px; height: 32px; padding: 0 12px; font-size: 12px;">Add to
                     Watchlist</button>
@@ -784,18 +786,26 @@
 
     // --- Charting Logic ---
     let stockChartInstance = null;
-    let currentModalStock = { code: null, name: null };
+    let currentModalStock = { code: null, name: null, strategy: null };
 
-    function openChartModal(scCode, scName) {
-        currentModalStock = { code: scCode, name: scName };
+    function openChartModal(scCode, scName, strategyName) {
+        currentModalStock = { code: scCode, name: scName, strategy: strategyName || '' };
         const modal = document.getElementById('chartModal');
         const title = document.getElementById('chartModalTitle');
         const ctx = document.getElementById('stockChart').getContext('2d');
         const watchBtn = document.getElementById('addToWatchlistBtn');
+        const orderBtn = document.getElementById('addToOrderBtn');
 
         title.textContent = `Loading ${scName} (${scCode})...`;
+        
         watchBtn.textContent = 'Add to Watchlist';
         watchBtn.disabled = false;
+        watchBtn.classList.remove('btn-success');
+        
+        orderBtn.textContent = 'Add to Order';
+        orderBtn.disabled = false;
+        orderBtn.classList.remove('btn-success');
+        
         modal.classList.add('show');
 
         // Fetch data
@@ -832,7 +842,8 @@
                 },
                 body: JSON.stringify({
                     sc_code: currentModalStock.code,
-                    sc_name: currentModalStock.name
+                    sc_name: currentModalStock.name,
+                    source_strategy: currentModalStock.strategy
                 })
             });
 
@@ -847,6 +858,44 @@
             console.error('Watchlist Error:', error);
             alert('Error adding to watchlist: ' + error.message);
             btn.textContent = 'Add to Watchlist';
+            btn.disabled = false;
+        }
+    }
+
+    async function addToOrder() {
+        if (!currentModalStock.code || !currentModalStock.name) return;
+
+        const btn = document.getElementById('addToOrderBtn');
+        btn.disabled = true;
+        btn.textContent = 'Adding...';
+
+        try {
+            const response = await fetch('/api/add_to_paper_trading', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    sc_code: currentModalStock.code,
+                    sc_name: currentModalStock.name,
+                    source_strategy: currentModalStock.strategy
+                })
+            });
+
+            const result = await response.json();
+            if (response.ok && result.success) {
+                btn.textContent = 'Added \u2713';
+                btn.classList.add('btn-success');
+                btn.style.backgroundColor = '#10b981';
+                btn.style.color = '#fff';
+                btn.style.borderColor = '#10b981';
+            } else {
+                throw new Error(result.error || 'Failed to add');
+            }
+        } catch (error) {
+            console.error('Order Error:', error);
+            alert('Error adding to paper trading: ' + error.message);
+            btn.textContent = 'Add to Order';
             btn.disabled = false;
         }
     }

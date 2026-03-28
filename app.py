@@ -102,6 +102,7 @@ def init_db():
                         attrib_03 VARCHAR(50),
                         attrib_04 VARCHAR(50),
                         attrib_05 VARCHAR(50),
+                        source_strategy VARCHAR(50),
                         status VARCHAR(20) DEFAULT 'OPEN',
                         sell_date TEXT,
                         sell_price REAL,
@@ -121,6 +122,7 @@ def init_db():
                         attrib_03 VARCHAR(50),
                         attrib_04 VARCHAR(50),
                         attrib_05 VARCHAR(50),
+                        source_strategy VARCHAR(50),
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 ''')
@@ -139,6 +141,7 @@ def init_db():
                         attrib_03 VARCHAR(50),
                         attrib_04 VARCHAR(50),
                         attrib_05 VARCHAR(50),
+                        source_strategy VARCHAR(50),
                         status VARCHAR(20) DEFAULT 'OPEN',
                         sell_date TEXT,
                         sell_price REAL,
@@ -158,6 +161,7 @@ def init_db():
                         attrib_03 VARCHAR(50),
                         attrib_04 VARCHAR(50),
                         attrib_05 VARCHAR(50),
+                        source_strategy VARCHAR(50),
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 ''')
@@ -1040,6 +1044,7 @@ def api_add_to_watchlist():
     data = request.get_json()
     sc_code = data.get('sc_code')
     sc_name = data.get('sc_name')
+    source_strategy = data.get('source_strategy', '')
 
     if not sc_code or not sc_name:
         return jsonify({'error': 'Missing sc_code or sc_name'}), 400
@@ -1057,19 +1062,63 @@ def api_add_to_watchlist():
         cur = conn_orders.cursor()
         if is_postgres:
             cur.execute(
-                'INSERT INTO watchstocks (username, sc_code, sc_name, quantity, order_date) VALUES (%s, %s, %s, %s, %s)',
-                (current_user.id, sc_code, sc_name, quantity, order_date)
+                'INSERT INTO watchstocks (username, sc_code, sc_name, quantity, order_date, source_strategy) VALUES (%s, %s, %s, %s, %s, %s)',
+                (current_user.id, sc_code, sc_name, quantity, order_date, source_strategy)
             )
         else:
             cur.execute(
-                'INSERT INTO watchstocks (username, sc_code, sc_name, quantity, order_date) VALUES (?, ?, ?, ?, ?)',
-                (current_user.id, sc_code, sc_name, quantity, order_date)
+                'INSERT INTO watchstocks (username, sc_code, sc_name, quantity, order_date, source_strategy) VALUES (?, ?, ?, ?, ?, ?)',
+                (current_user.id, sc_code, sc_name, quantity, order_date, source_strategy)
             )
         conn_orders.commit()
         cur.close()
         return jsonify({'success': True, 'message': 'Added to watchlist successfully'})
     except Exception as e:
         print(f"Error in api_add_to_watchlist: {e}")
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn_orders.close()
+
+
+@app.route('/api/add_to_paper_trading', methods=['POST'])
+@login_required
+def api_add_to_paper_trading():
+    data = request.get_json()
+    sc_code = data.get('sc_code')
+    sc_name = data.get('sc_name')
+    source_strategy = data.get('source_strategy', '')
+
+    if not sc_code or not sc_name:
+        return jsonify({'error': 'Missing sc_code or sc_name'}), 400
+
+    order_date = datetime.now().strftime('%Y-%m-%d')
+    quantity = 1
+
+    conn_orders = get_orders_db_connection()
+    if not conn_orders:
+        return jsonify({'error': 'Database error'}), 500
+
+    is_postgres = 'psycopg2' in str(type(conn_orders))
+
+    try:
+        cur = conn_orders.cursor()
+        if is_postgres:
+            cur.execute(
+                '''INSERT INTO orders (username, sc_code, sc_name, quantity, order_date, source_strategy, status) 
+                   VALUES (%s, %s, %s, %s, %s, %s, 'OPEN')''',
+                (current_user.id, sc_code, sc_name, quantity, order_date, source_strategy)
+            )
+        else:
+            cur.execute(
+                '''INSERT INTO orders (username, sc_code, sc_name, quantity, order_date, source_strategy, status) 
+                   VALUES (?, ?, ?, ?, ?, ?, 'OPEN')''',
+                (current_user.id, sc_code, sc_name, quantity, order_date, source_strategy)
+            )
+        conn_orders.commit()
+        cur.close()
+        return jsonify({'success': True, 'message': 'Added to Paper Trading successfully'})
+    except Exception as e:
+        print(f"Error in api_add_to_paper_trading: {e}")
         return jsonify({'error': str(e)}), 500
     finally:
         conn_orders.close()
