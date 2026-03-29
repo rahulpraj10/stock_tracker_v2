@@ -182,6 +182,10 @@ def create_score(SC):
     cf_raw = a[7]
     cf = cf_raw.set_index("Unnamed: 0").T
     cf.index = pd.to_datetime(cf.index, errors="coerce", format='%b %Y')
+    for col in cf.columns:
+        if cf[col].dtype == 'object':
+            cf[col] = cf[col].astype(str).str.replace(',', '', regex=True)
+            cf[col] = cf[col].str.strip('%')
     cf = cf.astype(float)
 
     cf_features = pd.DataFrame(index=cf.index)
