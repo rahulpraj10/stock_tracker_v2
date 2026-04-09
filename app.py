@@ -679,7 +679,7 @@ def paper_trading():
         # We perform a second pass to map scores to the display list
         for order in orders_list:
             record = tdb.get(ScoreQuery.sc_code == order['sc_code'])
-            order['score'] = record['score'] if record else 0.0
+            order['score'] = round(record['score'] if record else 0.0,2)
     # --- TINYDB SCORE LOGIC END ---
 
     # Calculate Portfolio Summary
@@ -741,6 +741,58 @@ def paper_trading():
                                'total_pl': total_pl,
                                'total_pl_pct': total_pl_pct
                            })
+
+
+def get_technical_indicators(stock_data_rows):
+    if len(stock_data_rows) < 20:
+        return None
+
+    # Convert rows to DataFrame
+    df = pd.DataFrame([dict(row) for row in stock_data_rows])
+
+    # Ensure numeric columns [cite: 26]
+    df['CLOSE'] = pd.to_numeric(df['CLOSE'], errors='coerce')
+    df['HIGH'] = pd.to_numeric(df['HIGH'], errors='coerce')
+    df['LOW'] = pd.to_numeric(df['LOW'], errors='coerce')
+    # Use the alias 'Volume' defined in your SQL query
+    df['Volume'] = pd.to_numeric(df['Volume'], errors='coerce')
+
+    # --- RSI Calculation (14-period) ---
+    delta = df['CLOSE'].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+    rs = gain / loss
+    df['RSI'] = 100 - (100 / (1 + rs))
+
+    # --- Bollinger Bands (20-period, 2 Std Dev) ---
+    df['MA20'] = df['CLOSE'].rolling(window=20).mean()
+    df['STD20'] = df['CLOSE'].rolling(window=20).std()
+    df['BB_Upper'] = df['MA20'] + (df['STD20'] * 2)
+    df['BB_Lower'] = df['MA20'] - (df['STD20'] * 2)
+
+    # --- VWAP Calculation ---
+    # Standard VWAP = sum(Price * Volume) / sum(Volume)
+    df['VWAP'] = (df['CLOSE'] * df['Volume']).cumsum() / df['Volume'].cumsum()
+
+    latest = df.iloc[-1]
+
+    # RSI Signal logic
+    rsi_val = latest['RSI']
+    rsi_signal = "Overbought" if rsi_val > 70 else ("Oversold" if rsi_val < 30 else "Neutral")
+
+    # BB Signal logic
+    bb_signal = "Inside Bands"
+    if latest['CLOSE'] > latest['BB_Upper']:
+        bb_signal = "Bullish Breakout"
+    elif latest['CLOSE'] < latest['BB_Lower']:
+        bb_signal = "Bearish Breakdown"
+
+    return {
+        'rsi': round(float(rsi_val), 2) if not pd.isna(rsi_val) else "N/A",
+        'rsi_signal': rsi_signal,
+        'vwap': round(float(latest['VWAP']), 2) if not pd.isna(latest['VWAP']) else "N/A",
+        'bb_signal': bb_signal
+    }
 
 
 @app.route('/get_fundamental_report/<sc_code>')
@@ -835,20 +887,28 @@ def order_chart_data(order_id):
 
                     # Fetch stock data from order_date to present
                     # Use "SCRIP CODE" as per DB schema
-                    query = """
-                        SELECT Date, "CLOSE" 
+
+                    query_all = """
+                        SELECT Date, "CLOSE", "HIGH", "LOW", "DAY'S VOLUME" as Volume 
                         FROM stocks 
-                        WHERE "SCRIP CODE" = ? AND Date >= ? 
+                        WHERE "SCRIP CODE" = ? 
                         ORDER BY Date ASC
                     """
-                    # Stock DB is always SQLite, use ?
                     cursor_stock = conn_stock.cursor()
-                    rows = cursor_stock.execute(query, (sc_code, order_date)).fetchall()
+                    all_rows = cursor_stock.execute(query_all, (sc_code,)).fetchall()
+
+                    # 1. CALL THE INDICATOR FUNCTION HERE
+                    # We pass 'all_rows' because it contains the history needed for RSI/BB
+                    tech_indicators = get_technical_indicators(all_rows)
+
+                    # 2. Filter rows for the Chart (only from order_date onwards)
+                    chart_rows = [r for r in all_rows if r['Date'] >= order_date]
+                    print('Length of chart rows: ', len(chart_rows))
 
                     with open("app_debug.log", "a") as f:
-                        f.write(f"Rows found: {len(rows)}\n")
+                        f.write(f"Rows found: {len(chart_rows)}\n")
 
-                    for row in rows:
+                    for row in chart_rows:
                         data["dates"].append(row['Date'])
                         # Ensure Close is float
                         try:
@@ -861,17 +921,20 @@ def order_chart_data(order_id):
                     if data["values"]:
                         try:
                             # Calculate per-unit prices first for % change
-                            unit_purchase_price = float(rows[0]['CLOSE'])
-                            unit_current_price = float(rows[-1]['CLOSE'])
+                            unit_purchase_price = float(chart_rows[0]['CLOSE'])
+                            unit_current_price = float(chart_rows[-1]['CLOSE'])
 
-                            pct_change = ((
-                                                      unit_current_price - unit_purchase_price) / unit_purchase_price) * 100 if unit_purchase_price != 0 else 0
+                            pct_change = ((unit_current_price - unit_purchase_price) / unit_purchase_price) * 100 if unit_purchase_price != 0 else 0
 
                             data["stats"] = {
                                 "purchase_price": unit_purchase_price * quantity,
                                 "current_price": unit_current_price * quantity,
                                 "pct_change": round(pct_change, 2),
-                                "profit_loss": (unit_current_price - unit_purchase_price) * quantity
+                                "profit_loss": (unit_current_price - unit_purchase_price) * quantity,
+                                "rsi": tech_indicators['rsi'] if tech_indicators else "N/A",
+                                "rsi_signal" : tech_indicators['rsi_signal'] if tech_indicators else "N/A",
+                                "vwap": tech_indicators['vwap'] if tech_indicators else "N/A",
+                                "bb_signal": tech_indicators['bb_signal'] if tech_indicators else "Neutral"
                             }
                         except Exception as e:
                             print(f"Error calculating stats: {e}")
@@ -1235,7 +1298,7 @@ def watchlist():
             # We perform a second pass to map scores to the display list
             for order in watch_list:
                 record = tdb.get(ScoreQuery.sc_code == order['sc_code'])
-                order['score'] = record['score'] if record else 0.0
+                order['score'] = round(record['score'] if record else 0.0,2)
         # --- TINYDB SCORE LOGIC END ---
 
     # Calculate Portfolio Summary

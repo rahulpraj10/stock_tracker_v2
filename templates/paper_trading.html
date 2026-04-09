@@ -386,6 +386,18 @@
                 <div style="font-size: 12px; color: var(--text-secondary);">Profit/Loss</div>
                 <div id="stat-pl" style="font-size: 16px; font-weight: 600;">-</div>
             </div>
+            <div style="text-align: center; border-left: 1px solid var(--border-color); padding-left: 15px;">
+                <div style="font-size: 12px; color: var(--text-secondary);">RSI (14)</div>
+                <div id="stat-rsi" style="font-size: 16px; font-weight: 600;">-</div>
+            </div>
+            <div style="text-align: center;">
+                <div style="font-size: 12px; color: var(--text-secondary);">VWAP</div>
+                <div id="stat-vwap" style="font-size: 16px; font-weight: 600;">-</div>
+            </div>
+            <div style="text-align: center;">
+                <div style="font-size: 12px; color: var(--text-secondary);">Technical Signal</div>
+                <div id="stat-tech-signal" style="font-size: 14px; font-weight: 600; color: var(--primary-color);">-</div>
+            </div>
         </div>
     </div>
 </div>
@@ -463,6 +475,19 @@
 
                 const plEl = document.getElementById('stat-pl');
                 const plVal = data.stats.profit_loss;
+
+                const rsiEl = document.getElementById('stat-rsi');
+                rsiEl.textContent = data.stats.rsi || '-';
+                // Optional coloring for RSI
+                if(data.stats.rsi > 70) rsiEl.style.color = '#ef4444';
+                else if(data.stats.rsi < 30) rsiEl.style.color = '#10b981';
+                else rsiEl.style.color = 'var(--text-main)';
+
+                document.getElementById('stat-vwap').textContent = '₹' + (data.stats.vwap || '-');
+
+                const signalEl = document.getElementById('stat-tech-signal');
+                signalEl.textContent = data.stats.bb_signal || 'Neutral';
+
                 plEl.textContent = (plVal >= 0 ? '+' : '') + '₹' + plVal.toFixed(2);
                 plEl.style.color = plVal >= 0 ? '#10b981' : '#ef4444';
 
