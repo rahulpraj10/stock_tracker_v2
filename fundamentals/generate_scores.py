@@ -115,177 +115,185 @@ def safe_clean_column(df, keyword, default_val=0.0):
 
 
 def create_score(SC):
-    link = f"https://www.screener.in/company/{SC}/"
-    a = pd.read_html(link)
+    print('Starting Scoring for SC: ', SC)
+    try:
+        link = f"https://www.screener.in/company/{SC}/"
+        a = pd.read_html(link)
 
-    pl_qtr_raw = a[0]
-    # Set row names as index
-    pl = pl_qtr_raw.set_index("Unnamed: 0")
+        pl_qtr_raw = a[0]
+        # Set row names as index
+        pl = pl_qtr_raw.set_index("Unnamed: 0")
 
-    # Transpose → time-series format
-    pl = pl.T
-    pl.index = pd.to_datetime(pl.index, errors="coerce", format='%b %Y')
+        # Transpose → time-series format
+        pl = pl.T
+        pl.index = pd.to_datetime(pl.index, errors="coerce", format='%b %Y')
 
-    # Convert numeric columns
-    for col in pl.columns:
-        pl[col] = (
-            pl[col]
-            .astype(str)
-            .str.replace("%", "")
-            .replace("NaN", np.nan)
-            .astype(float)
+        # Convert numeric columns
+        for col in pl.columns:
+            pl[col] = (
+                pl[col]
+                .astype(str)
+                .str.replace("%", "")
+                .replace("NaN", np.nan)
+                .astype(float)
+            )
+        features = pd.DataFrame(index=pl.index)
+
+        features["revenue"] = pl.iloc[:, [
+            [index for index, item in enumerate(pl.columns) if 'Revenue' in item] + [index for index, item in
+                                                                                     enumerate(pl.columns) if
+                                                                                     'Sales' in item]][
+            0]]  # pl["Revenue +"]
+        features["operating_profit"] = pl.iloc[
+            :, [[index for index, item in enumerate(pl.columns) if 'Operating Profit' in item] + [index for index, item in
+                                                                                     enumerate(pl.columns) if
+                                                                                     'Financing Profit' in item]][0]]  # pl["Net Profit +"]
+        features["net_profit"] = pl.iloc[
+            :, [index for index, item in enumerate(pl.columns) if 'Net Profit' in item][0]]  # pl["Net Profit +"]
+
+        # Growth
+        features["rev_qoq"] = features["revenue"].pct_change()
+        features["rev_yoy"] = features["revenue"].pct_change(4)
+
+        features["profit_qoq"] = features["net_profit"].pct_change()
+        features["profit_yoy"] = features["net_profit"].pct_change(4)
+
+        # Margins
+        features["profit_margin"] = (
+                features["net_profit"] / features["revenue"]
         )
-    features = pd.DataFrame(index=pl.index)
 
-    features["revenue"] = pl.iloc[:, [
-        [index for index, item in enumerate(pl.columns) if 'Revenue' in item] + [index for index, item in
-                                                                                 enumerate(pl.columns) if
-                                                                                 'Sales' in item]][
-        0]]  # pl["Revenue +"]
-    features["operating_profit"] = pl.iloc[
-        :, [[index for index, item in enumerate(pl.columns) if 'Operating Profit' in item] + [index for index, item in
-                                                                                 enumerate(pl.columns) if
-                                                                                 'Financing Profit' in item]][0]]  # pl["Net Profit +"]
-    features["net_profit"] = pl.iloc[
-        :, [index for index, item in enumerate(pl.columns) if 'Net Profit' in item][0]]  # pl["Net Profit +"]
+        bs_raw = a[6]
+        bs = bs_raw.set_index("Unnamed: 0").T
+        bs.index = pd.to_datetime(bs.index, errors="coerce", format='%b %Y')
 
-    # Growth
-    features["rev_qoq"] = features["revenue"].pct_change()
-    features["rev_yoy"] = features["revenue"].pct_change(4)
+        bs = bs.astype(float)
 
-    features["profit_qoq"] = features["net_profit"].pct_change()
-    features["profit_yoy"] = features["net_profit"].pct_change(4)
+        bs_features = pd.DataFrame(index=bs.index)
+        bs_features["Borrowing"] = bs.iloc[
+            :, [index for index, item in enumerate(bs.columns) if 'Borrowing' in item][0]]  # pl["Revenue +"]
 
-    # Margins
-    features["profit_margin"] = (
-            features["net_profit"] / features["revenue"]
-    )
+        bs_features["debt_to_equity"] = (
+                bs_features["Borrowing"] / (bs["Equity Capital"] + bs["Reserves"])
+        )
 
-    bs_raw = a[6]
-    bs = bs_raw.set_index("Unnamed: 0").T
-    bs.index = pd.to_datetime(bs.index, errors="coerce", format='%b %Y')
+        bs_features["asset_growth"] = bs["Total Assets"].pct_change()
+        bs_features["Total Assets"] = bs["Total Assets"]
+        #bs_features
 
-    bs = bs.astype(float)
+        cf_raw = a[7]
+        cf = cf_raw.set_index("Unnamed: 0").T
+        cf.index = pd.to_datetime(cf.index, errors="coerce", format='%b %Y')
+        for col in cf.columns:
+            if cf[col].dtype == 'object':
+                cf[col] = cf[col].astype(str).str.replace(',', '', regex=True)
+                cf[col] = cf[col].str.strip('%')
+        cf = cf.astype(float)
 
-    bs_features = pd.DataFrame(index=bs.index)
-    bs_features["Borrowing"] = bs.iloc[
-        :, [index for index, item in enumerate(bs.columns) if 'Borrowing' in item][0]]  # pl["Revenue +"]
+        cf_features = pd.DataFrame(index=cf.index)
 
-    bs_features["debt_to_equity"] = (
-            bs_features["Borrowing"] / (bs["Equity Capital"] + bs["Reserves"])
-    )
+        cf_features["operating_cf"] = cf.iloc[
+            :, [index for index, item in enumerate(cf.columns) if 'Cash from Operating Activity' in item][
+                0]]  # cf["Cash from Operating Activity +"]
+        cf_features["cf_to_profit"] = (
+                cf_features["operating_cf"] /
+                features["net_profit"].reindex(cf.index)
+        )
+        #cf_features
 
-    bs_features["asset_growth"] = bs["Total Assets"].pct_change()
-    bs_features["Total Assets"] = bs["Total Assets"]
-    #bs_features
+        roe_raw = a[8]
+        roe = roe_raw.set_index("Unnamed: 0").T
+        roe.index = pd.to_datetime(roe.index, errors="coerce", format='%b %Y')
+        # Could contain either ROE or ROCE. We will assume it to be same and process under ROE
+        pattern = 'ROE'
+        matching_columns = roe.filter(like=pattern, axis=1).columns
+        if not matching_columns.empty:
+            roe['ROE %'] = roe['ROE %'].replace('%', '', regex=True).astype(float)
+        else:
+            print('Here')
+            roe['ROE %'] = roe['ROCE %'].replace('%', '', regex=True).astype(float)
+            roe['ROCE %'] = roe['ROCE %'].replace('%', '', regex=True).astype(float)
+            # roe.drop("ROCE %", inplace = True)
+        roe = roe.astype(float)
 
-    cf_raw = a[7]
-    cf = cf_raw.set_index("Unnamed: 0").T
-    cf.index = pd.to_datetime(cf.index, errors="coerce", format='%b %Y')
-    for col in cf.columns:
-        if cf[col].dtype == 'object':
-            cf[col] = cf[col].astype(str).str.replace(',', '', regex=True)
-            cf[col] = cf[col].str.strip('%')
-    cf = cf.astype(float)
+        roe_features = pd.DataFrame(index=roe.index)
+        roe_features["roe"] = roe["ROE %"]
+        roe_features["roe_trend"] = roe_features["roe"].diff()
+        #roe_features
 
-    cf_features = pd.DataFrame(index=cf.index)
+        shareholding_raw = a[11]
+        sh = shareholding_raw.set_index("Unnamed: 0").T
+        sh.index = pd.to_datetime(sh.index, errors="coerce", format='%b %Y')
 
-    cf_features["operating_cf"] = cf.iloc[
-        :, [index for index, item in enumerate(cf.columns) if 'Cash from Operating Activity' in item][
-            0]]  # cf["Cash from Operating Activity +"]
-    cf_features["cf_to_profit"] = (
-            cf_features["operating_cf"] /
-            features["net_profit"].reindex(cf.index)
-    )
-    #cf_features
+        sh["Promoters"] = get_holding_safe(sh, 'Promoters')
+        sh["fii_holding"] = get_holding_safe(sh, 'FII')
+        sh["dii_holding"] = get_holding_safe(sh, 'DII')
+        #sh["public_holding"] = get_holding_safe(sh, 'Public')
 
-    roe_raw = a[8]
-    roe = roe_raw.set_index("Unnamed: 0").T
-    roe.index = pd.to_datetime(roe.index, errors="coerce", format='%b %Y')
-    # Could contain either ROE or ROCE. We will assume it to be same and process under ROE
-    pattern = 'ROE'
-    matching_columns = roe.filter(like=pattern, axis=1).columns
-    if not matching_columns.empty:
-        roe['ROE %'] = roe['ROE %'].replace('%', '', regex=True).astype(float)
-    else:
-        print('Here')
-        roe['ROE %'] = roe['ROCE %'].replace('%', '', regex=True).astype(float)
-        roe['ROCE %'] = roe['ROCE %'].replace('%', '', regex=True).astype(float)
-        # roe.drop("ROCE %", inplace = True)
-    roe = roe.astype(float)
+        sh_features = pd.DataFrame(index=sh.index)
+        sh_features["promoter_holding"] = sh["Promoters"]
+        sh_features["promoter_change"] = sh_features["promoter_holding"].diff()
 
-    roe_features = pd.DataFrame(index=roe.index)
-    roe_features["roe"] = roe["ROE %"]
-    roe_features["roe_trend"] = roe_features["roe"].diff()
-    #roe_features
+        sh_features["fii_holding"] = sh["fii_holding"]
+        sh_features["dii_holding"] = sh["dii_holding"]
 
-    shareholding_raw = a[11]
-    sh = shareholding_raw.set_index("Unnamed: 0").T
-    sh.index = pd.to_datetime(sh.index, errors="coerce", format='%b %Y')
+        qoq_features = features.reset_index()
+        qoq_features.rename(columns={'index': 'Date'}, inplace=True)
 
-    sh["Promoters"] = get_holding_safe(sh, 'Promoters')
-    sh["fii_holding"] = get_holding_safe(sh, 'FII')
-    sh["dii_holding"] = get_holding_safe(sh, 'DII')
-    #sh["public_holding"] = get_holding_safe(sh, 'Public')
+        bs_features1 = bs_features.reset_index()
+        bs_features1.rename(columns={'index': 'Date'}, inplace=True)
 
-    sh_features = pd.DataFrame(index=sh.index)
-    sh_features["promoter_holding"] = sh["Promoters"]
-    sh_features["promoter_change"] = sh_features["promoter_holding"].diff()
+        cf_features1 = cf_features.reset_index()
+        cf_features1.rename(columns={'index': 'Date'}, inplace=True)
+        #cf_features1
 
-    sh_features["fii_holding"] = sh["fii_holding"]
-    sh_features["dii_holding"] = sh["dii_holding"]
+        roe_features1 = roe_features.reset_index()
+        roe_features1.rename(columns={'index': 'Date'}, inplace=True)
+        #roe_features1
 
-    qoq_features = features.reset_index()
-    qoq_features.rename(columns={'index': 'Date'}, inplace=True)
+        compounded_sales_growth_df = a[2]
+        compounded_profit_growth_df = a[3]
+        stock_price_CAGR_df = a[4]
+        ROE_years_df = a[5]
 
-    bs_features1 = bs_features.reset_index()
-    bs_features1.rename(columns={'index': 'Date'}, inplace=True)
+        sh_features1 = sh_features.reset_index()
+        sh_features1.rename(columns={'index': 'Date'}, inplace=True)
+        #sh_features1
 
-    cf_features1 = cf_features.reset_index()
-    cf_features1.rename(columns={'index': 'Date'}, inplace=True)
-    #cf_features1
+        ROE_years_df.rename(columns={'Return on Equity': 'year', 'Return on Equity.1': 'return_on_equity'}, inplace=True)
 
-    roe_features1 = roe_features.reset_index()
-    roe_features1.rename(columns={'index': 'Date'}, inplace=True)
-    #roe_features1
+        ROE_years_df = ROE_years_df.fillna(0)
+        print(ROE_years_df)
+        ROE_years_df["return_on_equity"] = safe_clean_column(ROE_years_df, 'return_on_equity')
+        # ROE_years_df["return_on_equity"] = ROE_years_df.iloc[
+        #     :, [index for index, item in enumerate(ROE_years_df.columns) if 'return_on_equity' in item][0]].str.replace("%",
+        #                                                                                                                 "").astype(
+        #     float)
 
-    compounded_sales_growth_df = a[2]
-    compounded_profit_growth_df = a[3]
-    stock_price_CAGR_df = a[4]
-    ROE_years_df = a[5]
+        # Make them as dict
+        fundamentals_dict = {
+            'qoq_features': qoq_features.to_dict(orient='records'),
+            'bs_features': bs_features1.to_dict(orient='records'),
+            'cf_features': cf_features1.to_dict(orient='records'),
+            'roe_features': roe_features1.to_dict(orient='records'),
+            'compounded_sales_growth_df': compounded_sales_growth_df.to_dict(orient='records'),
+            'compounded_profit_growth_df': compounded_profit_growth_df.to_dict(orient='records'),
+            'stock_price_CAGR_df': stock_price_CAGR_df.to_dict(orient='records'),
+            'roe_years_df': ROE_years_df.to_dict(orient='records'),
+            'sh_features': sh_features1.to_dict(orient='records')
+        }
 
-    sh_features1 = sh_features.reset_index()
-    sh_features1.rename(columns={'index': 'Date'}, inplace=True)
-    #sh_features1
+        company_fundamentals_dict = {SC: fundamentals_dict}
 
-    ROE_years_df.rename(columns={'Return on Equity': 'year', 'Return on Equity.1': 'return_on_equity'}, inplace=True)
+        score = company_score(fundamentals_dict)['FinalScore']
+        print(f'Scores generated: {score} for SC: {SC}')
 
-    ROE_years_df = ROE_years_df.fillna(0)
-    print(ROE_years_df)
-    ROE_years_df["return_on_equity"] = safe_clean_column(ROE_years_df, 'return_on_equity')
-    # ROE_years_df["return_on_equity"] = ROE_years_df.iloc[
-    #     :, [index for index, item in enumerate(ROE_years_df.columns) if 'return_on_equity' in item][0]].str.replace("%",
-    #                                                                                                                 "").astype(
-    #     float)
+        return score, company_fundamentals_dict
 
-    # Make them as dict
-    fundamentals_dict = {
-        'qoq_features': qoq_features.to_dict(orient='records'),
-        'bs_features': bs_features1.to_dict(orient='records'),
-        'cf_features': cf_features1.to_dict(orient='records'),
-        'roe_features': roe_features1.to_dict(orient='records'),
-        'compounded_sales_growth_df': compounded_sales_growth_df.to_dict(orient='records'),
-        'compounded_profit_growth_df': compounded_profit_growth_df.to_dict(orient='records'),
-        'stock_price_CAGR_df': stock_price_CAGR_df.to_dict(orient='records'),
-        'roe_years_df': ROE_years_df.to_dict(orient='records'),
-        'sh_features': sh_features1.to_dict(orient='records')
-    }
-
-    company_fundamentals_dict = {SC: fundamentals_dict}
-
-    score = company_score(fundamentals_dict)['FinalScore']
-    print(f'Scores generated: {score} for SC: {SC}')
-
-    return score, company_fundamentals_dict
+    except Exception as e:
+        print(f"Error building the score for SC: {SC}: {e}")
+        score = 0
+        company_fundamentals_dict = {}
+        return score, company_fundamentals_dict
 
 
