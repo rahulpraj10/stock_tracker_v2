@@ -98,6 +98,15 @@ def init_db():
                         sc_name TEXT,
                         quantity INTEGER,
                         order_date TEXT,
+                        attrib_01 VARCHAR(50),
+                        attrib_02 VARCHAR(50),
+                        attrib_03 VARCHAR(50),
+                        attrib_04 VARCHAR(50),
+                        attrib_05 VARCHAR(50),
+                        source_strategy VARCHAR(50),
+                        status VARCHAR(20) DEFAULT 'OPEN',
+                        sell_date TEXT,
+                        sell_price REAL,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 ''')
@@ -109,6 +118,12 @@ def init_db():
                         sc_name TEXT,
                         quantity INTEGER,
                         order_date TEXT,
+                        attrib_01 VARCHAR(50),
+                        attrib_02 VARCHAR(50),
+                        attrib_03 VARCHAR(50),
+                        attrib_04 VARCHAR(50),
+                        attrib_05 VARCHAR(50),
+                        source_strategy VARCHAR(50),
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 ''')
@@ -122,6 +137,15 @@ def init_db():
                         sc_name TEXT,
                         quantity INTEGER,
                         order_date TEXT,
+                        attrib_01 VARCHAR(50),
+                        attrib_02 VARCHAR(50),
+                        attrib_03 VARCHAR(50),
+                        attrib_04 VARCHAR(50),
+                        attrib_05 VARCHAR(50),
+                        source_strategy VARCHAR(50),
+                        status VARCHAR(20) DEFAULT 'OPEN',
+                        sell_date TEXT,
+                        sell_price REAL,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 ''')
@@ -133,6 +157,12 @@ def init_db():
                         sc_name TEXT,
                         quantity INTEGER,
                         order_date TEXT,
+                        attrib_01 VARCHAR(50),
+                        attrib_02 VARCHAR(50),
+                        attrib_03 VARCHAR(50),
+                        attrib_04 VARCHAR(50),
+                        attrib_05 VARCHAR(50),
+                        source_strategy VARCHAR(50),
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 ''')
@@ -187,13 +217,13 @@ def load_user(user_id):
 @app.before_request
 def make_session_permanent():
     session.permanent = True
-    app.permanent_session_lifetime = timedelta(minutes=5)
+    app.permanent_session_lifetime = timedelta(minutes=10)
 
 
 @app.after_request
 def add_cache_control_headers(response):
     """Disable caching for specific dynamic pages to ensure fresh data."""
-    if request.endpoint in ['paper_trading', 'watchlist']:
+    if request.endpoint in ['paper_trading', 'watchlist', 'sold_orders']:
         response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
         response.headers['Pragma'] = 'no-cache'
         response.headers['Expires'] = '0'
@@ -678,9 +708,9 @@ def paper_trading():
         cur = conn_orders.cursor()
 
         if is_postgres:
-            cur.execute('SELECT * FROM orders WHERE username = %s ORDER BY created_at DESC', (current_user.id,))
+            cur.execute("SELECT * FROM orders WHERE username = %s AND status = 'OPEN' ORDER BY created_at DESC", (current_user.id,))
         else:
-            cur.execute('SELECT * FROM orders WHERE username = ? ORDER BY created_at DESC', (current_user.id,))
+            cur.execute("SELECT * FROM orders WHERE username = ? AND status = 'OPEN' ORDER BY created_at DESC", (current_user.id,))
 
         orders = cur.fetchall()
         #print(len(orders))
@@ -1002,12 +1032,158 @@ def order_chart_data(order_id):
     return data
 
 
+@app.route('/api/sell_order/<int:order_id>', methods=['POST'])
+@login_required
+def sell_order(order_id):
+    conn = get_orders_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database Error'}), 500
+
+    is_postgres = 'psycopg2' in str(type(conn))
+
+    try:
+        cur = conn.cursor()
+        
+        # Verify order belongs to user and is OPEN
+        if is_postgres:
+            cur.execute("SELECT * FROM orders WHERE id = %s AND username = %s AND status = 'OPEN'", (order_id, current_user.id))
+        else:
+            cur.execute("SELECT * FROM orders WHERE id = ? AND username = ? AND status = 'OPEN'", (order_id, current_user.id))
+            
+        order = cur.fetchone()
+        
+        if not order:
+            cur.close()
+            return jsonify({'error': 'Order not found or already sold.'}), 404
+            
+        sc_code = order['sc_code']
+        
+        # Get latest price
+        conn_stock = get_stock_db_connection()
+        sell_price = 0.0
+        if conn_stock:
+            try:
+                stock_cur = conn_stock.cursor()
+                stock_cur.execute("SELECT CLOSE FROM stocks WHERE CAST(SC_CODE AS TEXT) = ? ORDER BY Date DESC LIMIT 1", (sc_code,))
+                stock_row = stock_cur.fetchone()
+                if stock_row:
+                    sell_price = float(stock_row['CLOSE'])
+            except Exception as e:
+                print(f"Error getting stock price for sell: {e}")
+            finally:
+                conn_stock.close()
+                
+        if sell_price == 0.0:
+            cur.close()
+            return jsonify({'error': 'Could not fetch latest stock price.'}), 500
+            
+        sell_date = datetime.now().strftime('%Y-%m-%d')
+        
+        # Update order
+        if is_postgres:
+            cur.execute("UPDATE orders SET status = 'SOLD', sell_date = %s, sell_price = %s WHERE id = %s", (sell_date, sell_price, order_id))
+        else:
+            cur.execute("UPDATE orders SET status = 'SOLD', sell_date = ?, sell_price = ? WHERE id = ?", (sell_date, sell_price, order_id))
+            
+        conn.commit()
+        cur.close()
+        
+        return jsonify({'success': True, 'message': 'Order marked as sold successfully.'})
+    except Exception as e:
+        print(f"Error selling order: {e}")
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+
+@app.route('/sold_orders')
+@login_required
+def sold_orders():
+    conn_orders = get_orders_db_connection()
+    if not conn_orders:
+        flash("Orders Database Error", "error")
+        return redirect(url_for('index'))
+
+    is_postgres = 'psycopg2' in str(type(conn_orders))
+    
+    orders = []
+    try:
+        cur = conn_orders.cursor()
+        if is_postgres:
+            cur.execute("SELECT * FROM orders WHERE username = %s AND status = 'SOLD' ORDER BY sell_date DESC, created_at DESC", (current_user.id,))
+        else:
+            cur.execute("SELECT * FROM orders WHERE username = ? AND status = 'SOLD' ORDER BY sell_date DESC, created_at DESC", (current_user.id,))
+            
+        orders = cur.fetchall()
+        cur.close()
+    except Exception as e:
+        print(f"Error fetching sold orders: {e}")
+    finally:
+        conn_orders.close()
+        
+    orders_list = [dict(row) for row in orders]
+    
+    total_invested = 0.0
+    total_returned = 0.0
+    
+    stock_conn = get_stock_db_connection()
+    if orders_list and stock_conn:
+        try:
+            for order in orders_list:
+                try:
+                    sc_code = order['sc_code']
+                    stock_cur = stock_conn.cursor()
+                    stock_cur.execute("SELECT Date, CLOSE FROM stocks WHERE CAST(SC_CODE AS TEXT) = ? ORDER BY Date ASC", (sc_code,))
+                    stock_data = [{'Date': r['Date'], 'Close': float(r['CLOSE'])} for r in stock_cur.fetchall()]
+                    
+                    purchase_price = 0.0
+                    order_date_str = order['order_date']
+
+                    for row in stock_data:
+                        if row['Date'] >= order_date_str:
+                            purchase_price = float(row['Close'])
+                            break
+
+                    if purchase_price == 0.0 and stock_data:
+                        purchase_price = float(stock_data[-1]['Close'])
+                        
+                    sell_price = float(order['sell_price']) if order['sell_price'] else 0.0
+                    
+                    order['purchase_price'] = purchase_price
+                    order['pnl'] = (sell_price - purchase_price) * order['quantity']
+                    order['pnl_pct'] = ((sell_price - purchase_price) / purchase_price * 100) if purchase_price > 0 else 0.0
+                    
+                    total_invested += purchase_price * order['quantity']
+                    total_returned += sell_price * order['quantity']
+                except Exception as e:
+                    print(f"Error calculating stats for sold order {order['id']}: {e}")
+        except Exception as e:
+            print(f"Error processing sold orders: {e}")
+        finally:
+            stock_conn.close()
+    elif stock_conn:
+        stock_conn.close()
+        
+    total_pl = total_returned - total_invested
+    total_pl_pct = (total_pl / total_invested * 100) if total_invested > 0 else 0.0
+
+    return render_template('sold_orders.html', 
+                           orders=orders_list,
+                           summary={
+                               'total_invested': total_invested,
+                               'total_returned': total_returned,
+                               'total_pl': total_pl,
+                               'total_pl_pct': total_pl_pct
+                           })
+
+
 @app.route('/api/add_to_watchlist', methods=['POST'])
 @login_required
 def api_add_to_watchlist():
     data = request.get_json()
     sc_code = data.get('sc_code')
     sc_name = data.get('sc_name')
+    source_strategy = data.get('source_strategy', '')
 
     if not sc_code or not sc_name:
         return jsonify({'error': 'Missing sc_code or sc_name'}), 400
@@ -1025,19 +1201,63 @@ def api_add_to_watchlist():
         cur = conn_orders.cursor()
         if is_postgres:
             cur.execute(
-                'INSERT INTO watchstocks (username, sc_code, sc_name, quantity, order_date) VALUES (%s, %s, %s, %s, %s)',
-                (current_user.id, sc_code, sc_name, quantity, order_date)
+                'INSERT INTO watchstocks (username, sc_code, sc_name, quantity, order_date, source_strategy) VALUES (%s, %s, %s, %s, %s, %s)',
+                (current_user.id, sc_code, sc_name, quantity, order_date, source_strategy)
             )
         else:
             cur.execute(
-                'INSERT INTO watchstocks (username, sc_code, sc_name, quantity, order_date) VALUES (?, ?, ?, ?, ?)',
-                (current_user.id, sc_code, sc_name, quantity, order_date)
+                'INSERT INTO watchstocks (username, sc_code, sc_name, quantity, order_date, source_strategy) VALUES (?, ?, ?, ?, ?, ?)',
+                (current_user.id, sc_code, sc_name, quantity, order_date, source_strategy)
             )
         conn_orders.commit()
         cur.close()
         return jsonify({'success': True, 'message': 'Added to watchlist successfully'})
     except Exception as e:
         print(f"Error in api_add_to_watchlist: {e}")
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn_orders.close()
+
+
+@app.route('/api/add_to_paper_trading', methods=['POST'])
+@login_required
+def api_add_to_paper_trading():
+    data = request.get_json()
+    sc_code = data.get('sc_code')
+    sc_name = data.get('sc_name')
+    source_strategy = data.get('source_strategy', '')
+
+    if not sc_code or not sc_name:
+        return jsonify({'error': 'Missing sc_code or sc_name'}), 400
+
+    order_date = datetime.now().strftime('%Y-%m-%d')
+    quantity = 1
+
+    conn_orders = get_orders_db_connection()
+    if not conn_orders:
+        return jsonify({'error': 'Database error'}), 500
+
+    is_postgres = 'psycopg2' in str(type(conn_orders))
+
+    try:
+        cur = conn_orders.cursor()
+        if is_postgres:
+            cur.execute(
+                '''INSERT INTO orders (username, sc_code, sc_name, quantity, order_date, source_strategy, status) 
+                   VALUES (%s, %s, %s, %s, %s, %s, 'OPEN')''',
+                (current_user.id, sc_code, sc_name, quantity, order_date, source_strategy)
+            )
+        else:
+            cur.execute(
+                '''INSERT INTO orders (username, sc_code, sc_name, quantity, order_date, source_strategy, status) 
+                   VALUES (?, ?, ?, ?, ?, ?, 'OPEN')''',
+                (current_user.id, sc_code, sc_name, quantity, order_date, source_strategy)
+            )
+        conn_orders.commit()
+        cur.close()
+        return jsonify({'success': True, 'message': 'Added to Paper Trading successfully'})
+    except Exception as e:
+        print(f"Error in api_add_to_paper_trading: {e}")
         return jsonify({'error': str(e)}), 500
     finally:
         conn_orders.close()
