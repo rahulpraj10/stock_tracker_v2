@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
+<div id="flash-message"></div>
 <style>
     .paper-trading-container {
         display: flex;
@@ -137,6 +138,34 @@
         background-color: #fee2e2;
     }
 
+    .buy-btn {
+        background: none;
+        border: none;
+        color: #10b981;
+        cursor: pointer;
+        font-size: 1.1rem;
+        padding: 4px 8px;
+        border-radius: 4px;
+        transition: background 0.2s;
+    }
+    .buy-btn:hover { background-color: rgba(16, 185, 129, 0.1); }
+
+    #flash-message {
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background-color: #10b981; /* Green for success */
+        color: white;
+        padding: 12px 24px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 9999;
+        display: none; /* Hidden by default */
+        font-weight: 500;
+        transition: all 0.3s ease;
+    }
+
     /* Responsive Design */
     @media (max-width: 1024px) {
         .paper-trading-container {
@@ -259,6 +288,26 @@
             suggestionsList.style.display = 'none';
         }
     });
+
+    function showFlash(message, type = 'success') {
+        const flash = document.getElementById('flash-message');
+        flash.textContent = message;
+
+        // Change color based on type
+        flash.style.backgroundColor = type === 'success' ? '#10b981' : '#ef4444';
+
+        // Show the message
+        flash.style.display = 'block';
+        flash.style.opacity = '1';
+
+        // Auto-hide after 3 seconds
+        setTimeout(() => {
+            flash.style.opacity = '0';
+            setTimeout(() => {
+                flash.style.display = 'none';
+            }, 300); // Wait for fade out animation
+        }, 3000);
+    }
 </script>
 
 {% if summary %}
@@ -321,9 +370,9 @@
                             <p>Date: {{ order.order_date }} | Qty: {{ order.quantity }}</p>
                         </div>
                         <form action="{{ url_for('delete_watchlist_order', order_id=order.id) }}" method="POST"
-                        onsubmit="event.stopPropagation(); return confirm('Are you sure you want to remove this item?');">
-                        <button type="submit" class="delete-btn" title="Remove Item">&times;</button>
-                    </form>
+                            onsubmit="event.stopPropagation(); return confirm('Are you sure you want to remove this item?');">
+                            <button type="submit" class="delete-btn" title="Remove Item">&times;</button>
+                        </form>
                 </div>
                 {% endfor %}
                 {% else %}
@@ -336,8 +385,13 @@
     <div class="right-panel" style="display: flex; flex-direction: column;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
             <h4 id="panel-title">Stock Performance</h4>
-            <button id="toggle-report-btn" class="btn btn-primary"
-                    style="display:none; padding: 4px 12px; font-size: 12px;" onclick="toggleView()">Reports</button>
+            <div style="display: flex; gap: 8px;">
+                <button id="buy-action-btn" class="btn"
+                    style="display:none; padding: 4px 12px; font-size: 12px; background-color: #10b981; color: white; border: none;"
+                    onclick="openBuyPopup()">Buy Stock</button>
+                <button id="toggle-report-btn" class="btn btn-primary"
+                        style="display:none; padding: 4px 12px; font-size: 12px;" onclick="toggleView()">Reports</button>
+            </div>
         </div>
         <div id="chart-view" style="flex: 1; min-height: 0;">
             <canvas id="valueChart"></canvas>
@@ -376,24 +430,79 @@
     </div>
 </div>
 
+<div id="buy-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:2000; align-items:center; justify-content:center;">
+    <div class="card" style="width: 90%; max-width: 400px; padding: 24px; background: var(--card-bg); border: 1px solid var(--border-color); box-sizing: border-box;">
+        <h3 style="margin-top: 0; margin-bottom: 20px;">Confirm Purchase</h3>
+
+        <form id="pop_buy_form" onsubmit="handleBuySubmit(event)" style="display: flex; flex-direction: column; gap: 16px;">
+            <div class="form-group">
+                <label>Stock Name</label>
+                <input type="text" id="pop_stock_name" class="form-control" readonly style="background: var(--bg-color); cursor: not-allowed;">
+            </div>
+
+            <input type="hidden" id="pop_sc_code" name="sc_code">
+
+            <div style="display: flex; gap: 12px; width: 100%;">
+                <div class="form-group" style="flex: 1; min-width: 0;">
+                    <label>CMP (₹)</label>
+                    <input type="number" id="pop_price" step="0.01" class="form-control" readonly style="background: var(--bg-color); width: 100%; box-sizing: border-box;">
+                </div>
+                <div class="form-group" style="flex: 1; min-width: 0;">
+                    <label>Quantity</label>
+                    <input type="number" id="pop_qty" name="quantity" class="form-control" min="1" value="1" oninput="updateTotal()" style="width: 100%; box-sizing: border-box;">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Order Date</label>
+                <input type="date" id="pop_date" name="order_date" class="form-control" required style="width: 100%; box-sizing: border-box;">
+            </div>
+
+            <div style="margin: 10px 0; padding: 15px; background: var(--bg-color); border-radius: 8px; border: 1px dashed var(--border-color); text-align: center;">
+                <small style="color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px;">Total Investment</small>
+                <div id="pop_total" style="font-size: 22px; font-weight: 700; color: #10b981; margin-top: 5px;">₹0.00</div>
+            </div>
+
+            <div style="display: flex; gap: 12px; margin-top: 10px;">
+                <button type="button" class="btn" style="flex: 1; background: #6b7280; color: white; border: none;" onclick="closeBuyPopup()">Cancel</button>
+                <button type="submit" class="btn btn-primary" style="flex: 1; border: none;">Confirm Buy</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
+    // Add this log at the very top of the script
+    console.log("Watchlist script is being parsed...");
+
+    // Use the safe filter and provide a fallback
+    const ordersData = {{ orders|tojson|safe if orders else '[]' }};
+
+    // Add another log to verify data loaded
+    console.log("Orders Data initialized:", ordersData);
+
     let chartInstance = null;
-    let currentScCode = null;
-    let isReportView = false;
+    let activeStockName = "";
+    let activeStockCode = "";
 
     async function loadChart(orderId, stockName) {
+        console.log("loadChart triggered for:", stockName);
         try {
+            console.log("Current ordersData state:", ordersData); // DEBUG
+            // 1. Reset Visibility & Global State
+            activeStockName = stockName;
+            const orderRecord = ordersData.find(o => o.id === orderId);
+            activeStockCode = orderRecord ? orderRecord.sc_code : "";
+            currentScCode = activeStockCode; // For the report view
+
+            // 2. Fetch Data
             const response = await fetch(`/watchlist_chart_data/${orderId}`);
             if (!response.ok) throw new Error('Failed to fetch data');
-
             const data = await response.json();
 
-            // Update Chart
+            // 3. Update Chart
             const ctx = document.getElementById('valueChart').getContext('2d');
-
-            if (chartInstance) {
-                chartInstance.destroy();
-            }
+            if (chartInstance) { chartInstance.destroy(); }
 
             chartInstance = new Chart(ctx, {
                 type: 'line',
@@ -413,47 +522,31 @@
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {
-                        legend: { labels: { color: '#6b7280' } },
-                        title: { display: true, text: 'Value Over Time', color: '#6b7280' }
-                    },
-                    scales: {
-                        x: { ticks: { color: '#9ca3af' }, grid: { color: '#f3f4f6' } },
-                        y: { ticks: { color: '#9ca3af' }, grid: { color: '#f3f4f6' } }
+                        legend: { labels: { color: '#6b7280' } }
                     }
                 }
             });
 
-            // Update Stats
+            // 4. Update Stats Panel
             const statsContainer = document.getElementById('stats-container');
             if (data.stats) {
                 document.getElementById('stat-purchase').textContent = '₹' + data.stats.purchase_price.toFixed(2);
                 document.getElementById('stat-current').textContent = '₹' + data.stats.current_price.toFixed(2);
 
-                const changeEl = document.getElementById('stat-change');
-                const changeVal = data.stats.pct_change;
-                changeEl.textContent = (changeVal >= 0 ? '+' : '') + changeVal.toFixed(2) + '%';
-                changeEl.style.color = changeVal >= 0 ? '#10b981' : '#ef4444'; // Green or Red
-
                 const plEl = document.getElementById('stat-pl');
-                const plVal = data.stats.profit_loss;
-                plEl.textContent = (plVal >= 0 ? '+' : '') + '₹' + plVal.toFixed(2);
-                plEl.style.color = plVal >= 0 ? '#10b981' : '#ef4444';
+                plEl.textContent = (data.stats.profit_loss >= 0 ? '+' : '') + '₹' + data.stats.profit_loss.toFixed(2);
+                plEl.style.color = data.stats.profit_loss >= 0 ? '#10b981' : '#ef4444';
 
                 statsContainer.style.opacity = '1';
-            } else {
-                statsContainer.style.opacity = '0';
             }
 
-            const orderRecord = {{ orders|tojson }}.find(o => o.id === orderId);
-            currentScCode = orderRecord.sc_code;
+            // 5. Show Action Buttons
+            document.getElementById('buy-action-btn').style.display = 'block';
             document.getElementById('toggle-report-btn').style.display = 'block';
-
-            // Reset view to Chart if it was on Report
             showChartView();
 
         } catch (error) {
-            console.error('Error loading chart:', error);
-            alert('Failed to load chart data.');
+            console.error('Error in loadChart:', error);
         }
     }
 
@@ -573,5 +666,82 @@
             container.innerHTML = '<p style="padding:20px;">Report data is not available for this stock.</p>';
         }
     }
+
+function openBuyPopup() {
+    const modal = document.getElementById('buy-modal');
+
+    // Set stock details
+    document.getElementById('pop_stock_name').value = activeStockName;
+    document.getElementById('pop_sc_code').value = activeStockCode;
+
+    // Set Today's Date
+    document.getElementById('pop_date').value = new Date().toISOString().split('T')[0];
+
+    // FETCHING THE PRICE:
+    // We look for the 'stat-current' element from your right-panel
+    const statElement = document.getElementById('stat-current');
+    let price = 0;
+
+    if (statElement && statElement.textContent !== '-') {
+        // Remove currency symbol and commas before parsing
+        const rawPrice = statElement.textContent.replace(/[₹,]/g, '').trim();
+        price = parseFloat(rawPrice) || 0;
+    }
+
+    // Set price in the input
+    document.getElementById('pop_price').value = price.toFixed(2);
+
+    modal.style.display = 'flex';
+    updateTotal();
+}
+
+function closeBuyPopup() {
+    document.getElementById('buy-modal').style.display = 'none';
+}
+
+function updateTotal() {
+    const price = parseFloat(document.getElementById('pop_price').value) || 0;
+    const qty = parseInt(document.getElementById('pop_qty').value) || 0;
+    const total = price * qty;
+
+    // Formats with Indian numbering system (commas)
+    document.getElementById('pop_total').textContent = '₹' + total.toLocaleString('en-IN', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
+}
+
+async function handleBuySubmit(event) {
+    event.preventDefault();
+
+    const form = event.target;
+    const formData = new FormData(form);
+
+    // 1. IMMEDIATELY close the popup for an instant feel
+    closeBuyPopup();
+
+    // 2. Fire and forget (let the background handle the rest)
+    try {
+        const response = await fetch('/paper_trading', {
+            method: 'POST',
+            body: formData
+        });
+
+        // Even though the popup is closed, your logic still runs here.
+        // If you have a global toast function, you can trigger it here:
+        if (response.ok) {
+            console.log("Background order success");
+            showFlash("Order placed successfully!");
+            // showToast("Order placed successfully!"); // If you have a toast helper
+        } else {
+            console.error("Background order failed");
+            showFlash("Failed to place order", "error");
+            alert("Background Error: The order might not have been saved.");
+        }
+    } catch (error) {
+        console.error("Network error during background submission:", error);
+        showFlash("A connection error occurred", "error");
+    }
+}
 </script>
 {% endblock %}
