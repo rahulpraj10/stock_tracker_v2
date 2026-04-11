@@ -19,6 +19,7 @@ from tinydb import TinyDB, Query
 import numpy as np
 import pytz
 import time
+import json
 from flask_session import Session
 
 IST = pytz.timezone('Asia/Kolkata')
@@ -26,7 +27,7 @@ IST = pytz.timezone('Asia/Kolkata')
 # Global Strategy Cache (In-Memory)
 # Structure: { user_id: { strategy_name: { 'params': {...}, 'data': [...] } } }
 STRATEGY_CACHE = {}
-
+BASKET_CACHE = {}
 
 def format_data_for_render(data):
     for stock_code, details in data.items():
@@ -514,6 +515,81 @@ def strategies():
                            cached_data=session.get('cached_data', {}),
                            params=params)
 
+
+@app.route('/baskets')
+@login_required
+def baskets():
+    current_date = date.today().isoformat()
+    # If we already calculated today and it's not during market hours, return cache
+    if "data" in BASKET_CACHE and BASKET_CACHE.get("date") == current_date:
+        return render_template('baskets.html', baskets=BASKET_CACHE["data"])
+    with open('BSE_baskets.json', 'r') as fp:
+        BASKETS = json.load(fp)
+
+    conn = get_stock_db_connection()
+    all_baskets_results = {}
+
+    try:
+        all_codes = list(set(int(code) for codes in BASKETS.values() for code in codes))
+        # Query all_codes once, THEN loop through the dataframe to split by basket.
+        placeholders = ','.join(['?'] * len(all_codes))
+        query = f"""
+                        SELECT SC_CODE, SC_NAME, CLOSE, Date 
+                        FROM stocks 
+                        WHERE SC_CODE IN ({placeholders}) 
+                        AND Date >= date('now', '-100 days')
+                        ORDER BY Date ASC
+                    """
+        df_all = pd.read_sql_query(query, conn, params=all_codes)
+
+        for basket_name, sc_codes in BASKETS.items():
+            basket_stocks = []
+            clean_sc_codes = [int(code) for code in sc_codes]
+            basket_df = df_all[df_all['SC_CODE'].isin(clean_sc_codes)]
+
+            for code in sc_codes:
+                stock_df = basket_df[basket_df['SC_CODE'] == code].copy()
+                if stock_df.empty: continue
+
+                # Get latest values
+                latest = stock_df.iloc[-1]
+                current_price = latest['CLOSE']
+
+                # 1. Calculate RSI (14 period)
+                delta = stock_df['CLOSE'].diff()
+                gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+                loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+                rs = gain / loss
+                rsi = 100 - (100 / (1 + rs)).iloc[-1]
+
+                # 2. Trend Indicators (Current vs X days ago)
+                def get_trend(days):
+                    if len(stock_df) >= days:
+                        prev_price = stock_df.iloc[-days]['CLOSE']
+                        return "up" if current_price > prev_price else "down"
+                    return "neutral"
+
+                basket_stocks.append({
+                    "sc_code": code,
+                    "name": latest['SC_NAME'],
+                    "price": round(current_price, 2),
+                    "rsi": round(rsi, 2) if not pd.isna(rsi) else "-",
+                    "trends": {
+                        "5d": get_trend(5),
+                        "15d": get_trend(15),
+                        "30d": get_trend(30),
+                        "90d": get_trend(90)
+                    }
+                })
+
+            all_baskets_results[basket_name] = basket_stocks
+
+    finally:
+        conn.close()
+
+    BASKET_CACHE["date"] = current_date
+    BASKET_CACHE["data"] = all_baskets_results
+    return render_template('baskets.html', baskets=all_baskets_results)
 
 # Initialize TinyDB (adjust path as needed)
 tdb = TinyDB('fundamentals_scores.json')

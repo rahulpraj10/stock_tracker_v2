@@ -12,3 +12,4 @@ yfinance
 tinydb
 pytz
 flask_session
+json
