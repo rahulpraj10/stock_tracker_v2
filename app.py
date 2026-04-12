@@ -549,9 +549,15 @@ def strategies():
 @app.route('/baskets')
 @login_required
 def baskets():
-    current_date = date.today().isoformat()
-    # If we already calculated today and it's not during market hours, return cache
-    if "data" in BASKET_CACHE and BASKET_CACHE.get("date") == current_date:
+    # 1. Get current time in IST
+    now_ist = datetime.now(IST)
+
+    # 2. Logic: If it's before 10 PM, we are still on "yesterday's" data cycle.
+    # By subtracting 22 hours, the date only rolls over at exactly 11:00 PM.
+    effective_date = (now_ist - timedelta(hours=23)).strftime('%Y-%m-%d')
+
+    # 3. Check Cache
+    if "data" in BASKET_CACHE and BASKET_CACHE.get("date") == effective_date:
         return render_template('baskets.html', baskets=BASKET_CACHE["data"])
     with open('BSE_baskets.json', 'r') as fp:
         BASKETS = json.load(fp)
@@ -617,7 +623,7 @@ def baskets():
     finally:
         conn.close()
 
-    BASKET_CACHE["date"] = current_date
+    BASKET_CACHE["date"] = effective_date
     BASKET_CACHE["data"] = all_baskets_results
     return render_template('baskets.html', baskets=all_baskets_results)
 
