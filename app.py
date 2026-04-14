@@ -28,6 +28,7 @@ IST = pytz.timezone('Asia/Kolkata')
 # Structure: { user_id: { strategy_name: { 'params': {...}, 'data': [...] } } }
 STRATEGY_CACHE = {}
 BASKET_CACHE = {}
+USER_BASKET_CACHE = {}
 
 def format_data_for_render(data):
     for stock_code, details in data.items():
@@ -556,7 +557,7 @@ def baskets():
     # By subtracting 22 hours, the date only rolls over at exactly 11:00 PM.
     effective_date = (now_ist - timedelta(hours=23)).strftime('%Y-%m-%d')
 
-    # 3. Check Cache
+    # 3. Check Cache.
     if "data" in BASKET_CACHE and BASKET_CACHE.get("date") == effective_date:
         return render_template('baskets.html', baskets=BASKET_CACHE["data"])
     with open('BSE_baskets.json', 'r') as fp:
@@ -1544,6 +1545,102 @@ def watchlist_chart_data(order_id):
 
     return data
 
+
+@app.route('/health')
+@login_required
+def health():
+    # 1. Get user's active holdings from TinyDB or your paper trading DB
+    # Assuming you fetch codes from your paper trading table
+    conn_orders = get_orders_db_connection()
+    if not conn_orders:
+        flash("Orders Database Error", "error")
+        return redirect(url_for('index'))
+    is_postgres = 'psycopg2' in str(type(conn_orders))
+    param_style = '%s' if is_postgres else '?'
+
+    # Fetch user's orders
+    orders = []
+    try:
+        cur = conn_orders.cursor()
+
+        if is_postgres:
+            cur.execute("SELECT * FROM orders WHERE username = %s AND status = 'OPEN' ORDER BY created_at DESC",
+                        (current_user.id,))
+        else:
+            cur.execute("SELECT * FROM orders WHERE username = ? AND status = 'OPEN' ORDER BY created_at DESC",
+                        (current_user.id,))
+
+        orders = cur.fetchall()
+        # print(len(orders))
+        # Get scores from tinyb,
+        # Run a scan of all unique SC_CODE in orders. Cheeck if all those SC_CODES are present in tiny DB
+        # For code which are not present, call function to generate code and push to tiny db
+        # Then download all score and proceed
+        cur.close()
+    except Exception as e:
+        print(f"Error fetching orders: {e}")
+    finally:
+        conn_orders.close()
+
+    orders_list = [dict(row) for row in orders]
+    holding_codes = None
+    if orders_list:
+        holding_codes = {order['sc_code'] for order in orders_list}
+
+    if not holding_codes:
+        return render_template('health.html', holdings=[])
+
+    # 2. Fetch technical data (Reuse your logic from Baskets)
+    conn = get_stock_db_connection()
+    holdings_data = []
+
+    try:
+        # Optimization: Fetch only unique codes
+        unique_codes = list(set(holding_codes))
+        placeholders = ','.join(['?'] * len(unique_codes))
+
+        query = f"""
+            SELECT SC_CODE, SC_NAME, CLOSE, Date 
+            FROM stocks 
+            WHERE SC_CODE IN ({placeholders}) 
+            AND Date >= date('now', '-100 days')
+            ORDER BY Date ASC
+        """
+        df = pd.read_sql_query(query, conn, params=unique_codes)
+
+        for code in unique_codes:
+            stock_df = df[df['SC_CODE'].astype(str) == str(code)].copy()
+            if stock_df.empty: continue
+
+            latest = stock_df.iloc[-1]
+            last_price = latest['CLOSE']
+
+            # 1. Calculate RSI (14 period)
+            delta = stock_df['CLOSE'].diff()
+            gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+            loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+            rs = gain / loss
+            rsi = 100 - (100 / (1 + rs)).iloc[-1]
+            try:
+                old_st_price = stock_df.iloc[-90]['CLOSE']
+            except Exception as e:
+                print('Stock Price Index issue')
+                old_st_price = 1000
+
+            holdings_data.append({
+                "sc_code": code,
+                "name": stock_df.iloc[-1]['SC_NAME'],
+                "price": round(stock_df.iloc[-1]['CLOSE'], 2),
+                "rsi": round(rsi, 2),
+                "trend_90": "up" if last_price > old_st_price else "down",
+                #"trend_90": "up"
+
+            })
+
+    finally:
+        conn.close()
+
+    return render_template('health.html', holdings=holdings_data)
 
 @app.route('/api/search_stocks')
 @login_required
