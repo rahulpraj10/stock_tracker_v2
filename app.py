@@ -1621,10 +1621,14 @@ def health():
             loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
             rs = gain / loss
             rsi = 100 - (100 / (1 + rs)).iloc[-1]
-            try:
+            print(f'Length of stock {len(stock_df)}')
+            if len(stock_df) >=90:
                 old_st_price = stock_df.iloc[-90]['CLOSE']
-            except Exception as e:
-                print('Stock Price Index issue')
+            elif len(stock_df) >=60:
+                old_st_price = stock_df.iloc[-60]['CLOSE']
+            elif len(stock_df) >=30:
+                old_st_price = stock_df.iloc[-30]['CLOSE']
+            else:
                 old_st_price = 1000
 
             holdings_data.append({
