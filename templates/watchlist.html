@@ -588,6 +588,11 @@
                 document.getElementById('stat-purchase').textContent = '₹' + data.stats.purchase_price.toFixed(2);
                 document.getElementById('stat-current').textContent = '₹' + data.stats.current_price.toFixed(2);
 
+                const changeEl = document.getElementById('stat-change');
+                const changeVal = data.stats.pct_change;
+                changeEl.textContent = (changeVal >= 0 ? '+' : '') + changeVal.toFixed(2) + '%';
+                changeEl.style.color = changeVal >= 0 ? '#10b981' : '#ef4444';
+
                 const plEl = document.getElementById('stat-pl');
                 plEl.textContent = (data.stats.profit_loss >= 0 ? '+' : '') + '₹' + data.stats.profit_loss.toFixed(2);
                 plEl.style.color = data.stats.profit_loss >= 0 ? '#10b981' : '#ef4444';

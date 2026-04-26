@@ -514,11 +514,46 @@
             const mainContainer = document.getElementById('main-container');
 
             const genericSkeleton = `
-                <div class="generic-skeleton">
-                    <div class="skeleton-header global-shimmer"></div>
-                    <div style="display: flex; gap: 24px; margin-top: 24px; flex-wrap: wrap;">
-                        <div class="skeleton-box global-shimmer" style="flex: 1; min-width: 300px; height: 400px;"></div>
-                        <div class="skeleton-box global-shimmer" style="flex: 2; min-width: 300px; height: 400px;"></div>
+                <div class="generic-skeleton" style="display: flex; flex-direction: column; gap: 24px; padding-top: 12px; height: 100%; box-sizing: border-box;">
+                    <!-- Branding & Header Area -->
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <div class="global-shimmer" style="width: 42px; height: 42px; border-radius: 10px; background-color: var(--border-color);"></div>
+                            <div class="global-shimmer" style="width: 140px; height: 24px; border-radius: 6px; background-color: var(--border-color);"></div>
+                        </div>
+                        <div class="global-shimmer" style="width: 220px; height: 38px; border-radius: 19px; background-color: var(--border-color);"></div>
+                    </div>
+
+                    <!-- Top summary cards -->
+                    <div style="display: flex; gap: 16px; flex-wrap: wrap;">
+                        <div class="skeleton-box global-shimmer" style="flex: 1; min-width: 200px; height: 110px; border-radius: 12px;"></div>
+                        <div class="skeleton-box global-shimmer" style="flex: 1; min-width: 200px; height: 110px; border-radius: 12px;"></div>
+                        <div class="skeleton-box global-shimmer" style="flex: 1; min-width: 200px; height: 110px; border-radius: 12px;"></div>
+                        <div class="skeleton-box global-shimmer" style="flex: 1; min-width: 200px; height: 110px; border-radius: 12px;"></div>
+                    </div>
+
+                    <!-- Main content area -->
+                    <div style="display: flex; gap: 24px; flex-wrap: wrap;">
+                        <!-- Left Panel (List) -->
+                        <div style="flex: 1; min-width: 300px; display: flex; flex-direction: column; gap: 16px;">
+                            <div class="skeleton-box global-shimmer" style="height: 120px; border-radius: 12px;"></div>
+                            <div class="skeleton-box global-shimmer" style="height: 120px; border-radius: 12px;"></div>
+                            <div class="skeleton-box global-shimmer" style="height: 120px; border-radius: 12px;"></div>
+                            <div class="skeleton-box global-shimmer" style="height: 120px; border-radius: 12px;"></div>
+                        </div>
+                        
+                        <!-- Right Panel (Chart) -->
+                        <div class="skeleton-box global-shimmer" style="flex: 2; min-width: 400px; height: 530px; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; overflow: hidden;">
+                            <div style="font-size: 28px; font-weight: 800; color: var(--text-secondary); opacity: 0.2; letter-spacing: 4px; text-transform: uppercase;">
+                                Stock Analyser
+                            </div>
+                            <div style="margin-top: 16px; width: 60%; height: 200px; border-bottom: 2px dashed rgba(156, 163, 175, 0.2); position: relative;">
+                                <!-- Faint chart line illusion -->
+                                <svg width="100%" height="100%" preserveAspectRatio="none" viewBox="0 0 100 100" style="opacity: 0.1;">
+                                    <path d="M0,80 Q20,60 40,70 T80,30 T100,10" fill="none" stroke="currentColor" stroke-width="2"/>
+                                </svg>
+                            </div>
+                        </div>
                     </div>
                 </div>
             `;
