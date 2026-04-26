@@ -234,7 +234,7 @@ def add_cache_control_headers(response):
 def handle_maintenance():
     # This runs before every request, but the "if % 2 == 0"
     # ensures it only actually does work on even days.
-    # even_day_cleanup("./flask_session", max_age_hours=24)
+    even_day_cleanup("./flask_session", max_age_hours=24)
     print('even_day_cleanup')
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -757,14 +757,31 @@ def paper_trading():
     stock_conn = get_stock_db_connection()
     if orders and stock_conn:
         try:
+            # OPTIMIZED: Fetch all needed stocks in one single query
+            unique_sc_codes = list(set(order['sc_code'] for order in orders))
+            if not unique_sc_codes:
+                raise Exception("No unique sc_codes found")
+                
+            placeholders = ','.join(['?'] * len(unique_sc_codes))
+            min_date = min(order['order_date'] for order in orders)
+            
+            query = f'SELECT "SCRIP CODE" as sc_code, Close, Date FROM stocks WHERE "SCRIP CODE" IN ({placeholders}) AND Date >= ? ORDER BY Date ASC'
+            
+            params = unique_sc_codes + [min_date]
+            all_stock_data = stock_conn.execute(query, params).fetchall()
+            
+            # Group by SC_CODE
+            grouped_data = {}
+            for row in all_stock_data:
+                sc = str(row['sc_code'])
+                if sc not in grouped_data:
+                    grouped_data[sc] = []
+                grouped_data[sc].append(row)
+                
             for order in orders:
                 try:
-                    # Optimized: Could fetch all needed stocks in one go, but this is fine for now
-                    # We need the price on order_date and current price
-                    # Query the main 'stocks' table for the specific SCRIP CODE
-                    # usage of "SCRIP CODE" (quoted) to handle space in column name
-                    query = 'SELECT Close, Date FROM stocks WHERE "SCRIP CODE" = ? ORDER BY Date ASC'
-                    stock_data = stock_conn.execute(query, (order['sc_code'],)).fetchall()
+                    sc_code_str = str(order['sc_code'])
+                    stock_data = grouped_data.get(sc_code_str, [])
 
                     if stock_data:
                         # Find Purchase Price
@@ -772,16 +789,12 @@ def paper_trading():
                         order_date_str = order['order_date']
 
                         # Find first date >= order_date
-                        # Since list is sorted by date ASC, we can iterate
                         for row in stock_data:
                             if row['Date'] >= order_date_str:
                                 purchase_price = float(row['Close'])
                                 break
 
-                        # If date is in future relative to data, use last available?
-                        # Or if we didn't find any date >= order_date (unlikely if order validated)
                         if purchase_price == 0.0 and stock_data:
-                            # Fallback to last close if order date is very recent/future
                             purchase_price = float(stock_data[-1]['Close'])
 
                         current_price = float(stock_data[-1]['Close'])
@@ -1361,10 +1374,31 @@ def watchlist():
     stock_conn = get_stock_db_connection()
     if orders and stock_conn:
         try:
+            # OPTIMIZED: Fetch all needed stocks in one single query
+            unique_sc_codes = list(set(order['sc_code'] for order in orders))
+            if not unique_sc_codes:
+                raise Exception("No unique sc_codes found")
+                
+            placeholders = ','.join(['?'] * len(unique_sc_codes))
+            min_date = min(order['order_date'] for order in orders)
+            
+            query = f'SELECT "SCRIP CODE" as sc_code, Close, Date FROM stocks WHERE "SCRIP CODE" IN ({placeholders}) AND Date >= ? ORDER BY Date ASC'
+            
+            params = unique_sc_codes + [min_date]
+            all_stock_data = stock_conn.execute(query, params).fetchall()
+            
+            # Group by SC_CODE
+            grouped_data = {}
+            for row in all_stock_data:
+                sc = str(row['sc_code'])
+                if sc not in grouped_data:
+                    grouped_data[sc] = []
+                grouped_data[sc].append(row)
+                
             for order in orders:
                 try:
-                    query = 'SELECT Close, Date FROM stocks WHERE "SCRIP CODE" = ? ORDER BY Date ASC'
-                    stock_data = stock_conn.execute(query, (order['sc_code'],)).fetchall()
+                    sc_code_str = str(order['sc_code'])
+                    stock_data = grouped_data.get(sc_code_str, [])
 
                     if stock_data:
                         purchase_price = 0.0
