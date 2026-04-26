@@ -741,28 +741,13 @@ def paper_trading():
         # 1. Get unique SC_CODEs from the user's orders
         unique_sc_codes = {order['sc_code'] for order in orders_list}
 
-        # 2. Check TinyDB and generate missing scores
-        for sc in unique_sc_codes:
-            record = tdb.get(ScoreQuery.sc_code == sc)
-
-            if not record:
-                # Call function for missing records
-                new_score, fundamentals_dict = create_score(sc)
-
-                # Sanitize and store in TinyDB
-                # (Assuming json_safe is the helper we discussed earlier)
-                tdb.insert({
-                    'sc_code': sc,
-                    'score': float(new_score),
-                    'data': json_safe(fundamentals_dict),
-                    'last_updated': datetime.now().isoformat()
-                })
-
-        # 3. Update orders_list with actual scores from TinyDB
-        # We perform a second pass to map scores to the display list
+        # 2. Update orders_list with actual scores from TinyDB
         for order in orders_list:
             record = tdb.get(ScoreQuery.sc_code == order['sc_code'])
-            order['score'] = round(record['score'] if record else 0.0,2)
+            if record:
+                order['score'] = round(record['score'], 2)
+            else:
+                order['score'] = 'Pending'
     # --- TINYDB SCORE LOGIC END ---
 
     # Calculate Portfolio Summary
@@ -1360,28 +1345,13 @@ def watchlist():
             # 1. Get unique SC_CODEs from the user's orders
             unique_sc_codes = {order['sc_code'] for order in watch_list}
 
-            # 2. Check TinyDB and generate missing scores
-            for sc in unique_sc_codes:
-                record = tdb.get(ScoreQuery.sc_code == sc)
-
-                if not record:
-                    # Call function for missing records
-                    new_score, fundamentals_dict = create_score(sc)
-
-                    # Sanitize and store in TinyDB
-                    # (Assuming json_safe is the helper we discussed earlier)
-                    tdb.insert({
-                        'sc_code': sc,
-                        'score': float(new_score),
-                        'data': json_safe(fundamentals_dict),
-                        'last_updated': datetime.now().isoformat()
-                    })
-
-            # 3. Update orders_list with actual scores from TinyDB
-            # We perform a second pass to map scores to the display list
+            # 2. Update watch_list with actual scores from TinyDB
             for order in watch_list:
                 record = tdb.get(ScoreQuery.sc_code == order['sc_code'])
-                order['score'] = round(record['score'] if record else 0.0,2)
+                if record:
+                    order['score'] = round(record['score'], 2)
+                else:
+                    order['score'] = 'Pending'
         # --- TINYDB SCORE LOGIC END ---
 
     # Calculate Portfolio Summary
@@ -1645,6 +1615,28 @@ def health():
         conn.close()
 
     return render_template('health.html', holdings=holdings_data)
+
+@app.route('/api/get_score/<sc_code>')
+@login_required
+def api_get_score(sc_code):
+    record = tdb.get(ScoreQuery.sc_code == sc_code)
+    if record:
+        return jsonify({'sc_code': sc_code, 'score': round(record['score'], 2), 'status': 'cached'})
+    
+    # Missing, calculate it
+    try:
+        new_score, fundamentals_dict = create_score(sc_code)
+        score_val = round(float(new_score), 2)
+        tdb.insert({
+            'sc_code': sc_code,
+            'score': score_val,
+            'data': json_safe(fundamentals_dict),
+            'last_updated': datetime.now().isoformat()
+        })
+        return jsonify({'sc_code': sc_code, 'score': score_val, 'status': 'calculated'})
+    except Exception as e:
+        print(f"Error generating score for {sc_code}: {e}")
+        return jsonify({'sc_code': sc_code, 'error': str(e)}), 500
 
 @app.route('/api/search_stocks')
 @login_required

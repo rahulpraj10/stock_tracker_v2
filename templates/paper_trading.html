@@ -310,19 +310,29 @@
                 {% for order in orders %}
                     {# Logic to determine color class based on score #}
                     {% set score_class = "" %}
-                    {% if order.score > 75 %}
-                        {% set score_class = "score-green" %}
-                    {% elif order.score < 50 %}
-                        {% set score_class = "score-red" %}
+                    {% if order.score != 'Pending' %}
+                        {% if order.score > 75 %}
+                            {% set score_class = "score-green" %}
+                        {% elif order.score < 50 %}
+                            {% set score_class = "score-red" %}
+                        {% else %}
+                            {% set score_class = "score-yellow" %}
+                        {% endif %}
                     {% else %}
-                        {% set score_class = "score-yellow" %}
+                        {% set score_class = "score-pending" %}
                     {% endif %}
 
-                    <div class="order-card {{ score_class }}" onclick="loadChart({{ order.id }}, '{{ order.sc_name }}')">
+                    <div class="order-card {{ score_class }}" data-sc-code="{{ order.sc_code }}" onclick="loadChart({{ order.id }}, '{{ order.sc_name }}')">
                         <div class="order-info">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-right: 15px;">
                                 <h4>{{ order.sc_name }} ({{ order.sc_code }})</h4>
-                                <span style="font-size: 10px; font-weight: bold; opacity: 0.7;">F_Score: {{ order.score }}</span>
+                                <span class="f-score-display" style="font-size: 10px; font-weight: bold; opacity: 0.7;">
+                                    {% if order.score == 'Pending' %}
+                                        F_Score: Loading...
+                                    {% else %}
+                                        F_Score: {{ order.score }}
+                                    {% endif %}
+                                </span>
                             </div>
                             <p>Date: {{ order.order_date }} | Qty: {{ order.quantity }}</p>
                             {% if order.source_strategy %}
@@ -709,6 +719,38 @@
             confirmBtn.textContent = 'Confirm Sell';
         }
     }
+
+    // Async Score Fetching
+    document.addEventListener('DOMContentLoaded', async () => {
+        const pendingCards = document.querySelectorAll('.order-card.score-pending');
+        for (const card of pendingCards) {
+            const scCode = card.dataset.scCode;
+            if (!scCode) continue;
+
+            try {
+                const response = await fetch(`/api/get_score/${scCode}`);
+                const data = await response.json();
+                
+                if (data.score !== undefined) {
+                    // Update score display
+                    const scoreDisplay = card.querySelector('.f-score-display');
+                    if (scoreDisplay) {
+                        scoreDisplay.innerHTML = `F_Score: ${data.score}`;
+                    }
+
+                    // Update class
+                    card.classList.remove('score-pending');
+                    if (data.score > 75) card.classList.add('score-green');
+                    else if (data.score < 50) card.classList.add('score-red');
+                    else card.classList.add('score-yellow');
+                }
+            } catch (err) {
+                console.error('Failed to fetch score for', scCode, err);
+                const scoreDisplay = card.querySelector('.f-score-display');
+                if (scoreDisplay) scoreDisplay.innerHTML = `F_Score: Error`;
+            }
+        }
+    });
 
 </script>
 {% endblock %}
