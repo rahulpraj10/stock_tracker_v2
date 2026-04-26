@@ -359,7 +359,7 @@
                             {% set score_class = "score-pending" %}
                         {% endif %}
 
-                        <div class="order-card {{ score_class }}" data-sc-code="{{ order.sc_code }}" onclick="loadChart({{ order.id }}, '{{ order.sc_name }}')">
+                        <div class="order-card {{ score_class }}" data-sc-code="{{ order.sc_code }}" onclick="ptLoadChart({{ order.id }}, '{{ order.sc_name }}')">
                             <div class="order-info">
                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-right: 15px;">
                                     <h4>{{ order.sc_name }} ({{ order.sc_code }})</h4>
@@ -379,7 +379,7 @@
                                 {% endif %}
                             </div>
                             <div style="display: flex; gap: 8px; margin-top: 8px;">
-                                <button type="button" class="btn btn-primary" onclick="openSellDialog({{ order.id }}, '{{ order.sc_name }}', event)" title="Sell Order" style="background-color: #f59e0b; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg></button>
+                                <button type="button" class="btn btn-primary" onclick="ptOpenSellDialog({{ order.id }}, '{{ order.sc_name }}', event)" title="Sell Order" style="background-color: #f59e0b; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg></button>
                                 <form action="{{ url_for('delete_order', order_id=order.id) }}" method="POST"
                                     onsubmit="event.stopPropagation(); return confirm('Are you sure you want to delete this order?');">
                                     <button type="submit" class="delete-btn" title="Delete Order">&times;</button>
@@ -399,7 +399,7 @@
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
             <h4 id="panel-title">Stock Performance</h4>
             <button id="toggle-report-btn" class="btn btn-primary"
-                    style="display:none; height: 40px;" onclick="toggleView()">Reports</button>
+                    style="display:none; height: 40px;" onclick="ptToggleView()">Reports</button>
         </div>
         <div id="chart-view" style="flex: 1; min-height: 0;">
             <canvas id="valueChart"></canvas>
@@ -457,18 +457,18 @@
         <h4 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600; color: var(--text-main);">Confirm Sale</h4>
         <p id="sellDialogText" style="margin: 0 0 20px 0; font-size: 14px; color: var(--text-secondary); line-height: 1.5;"></p>
         <div style="display: flex; justify-content: flex-end; gap: 12px;">
-            <button onclick="closeSellDialog()" class="btn btn-outline" style="padding: 6px 16px;">Cancel</button>
+            <button onclick="ptCloseSellDialog()" class="btn btn-outline" style="padding: 6px 16px;">Cancel</button>
             <button id="confirmSellBtn" class="btn btn-primary" style="padding: 6px 16px; background-color: #f59e0b; border: none; color: white;">Confirm Sell</button>
         </div>
     </div>
 </dialog>
 
 <script>
-    let chartInstance = null;
-    let currentScCode = null;
-    let isReportView = false;
+    var ptChartInstance = null;
+    var ptCurrentScCode = null;
+    var ptIsReportView = false;
 
-    async function loadChart(orderId, stockName) {
+    async function ptLoadChart(orderId, stockName) {
         try {
             const response = await fetch(`/order_chart_data/${orderId}`);
             if (!response.ok) throw new Error('Failed to fetch data');
@@ -478,11 +478,11 @@
             // Update Chart
             const ctx = document.getElementById('valueChart').getContext('2d');
 
-            if (chartInstance) {
-                chartInstance.destroy();
+            if (ptChartInstance) {
+                ptChartInstance.destroy();
             }
 
-            chartInstance = new Chart(ctx, {
+            ptChartInstance = new Chart(ctx, {
                 type: 'line',
                 data: {
                     labels: data.dates,
@@ -545,11 +545,11 @@
             }
 
             const orderRecord = {{ orders|tojson }}.find(o => o.id === orderId);
-            currentScCode = orderRecord.sc_code;
+            ptCurrentScCode = orderRecord.sc_code;
             document.getElementById('toggle-report-btn').style.display = 'block';
 
             // Reset view to Chart if it was on Report
-            showChartView();
+            ptShowChartView();
 
         }
         catch (error) {
@@ -558,20 +558,20 @@
         }
     }
 
-    function toggleView() {
-        if (isReportView) showChartView();
-        else showReportView();
+    function ptToggleView() {
+        if (ptIsReportView) ptShowChartView();
+        else ptShowReportView();
     }
 
-    function showChartView() {
+    function ptShowChartView() {
         document.getElementById('chart-view').style.display = 'block';
         document.getElementById('report-view').style.display = 'none';
         document.getElementById('toggle-report-btn').textContent = 'Reports';
-        isReportView = false;
+        ptIsReportView = false;
     }
 
-    async function showReportView() {
-        if (!currentScCode) {
+    async function ptShowReportView() {
+        if (!ptCurrentScCode) {
             console.error("No SC Code selected");
             return;
         }
@@ -585,16 +585,16 @@
         if (stats) stats.style.display = 'none';
 
         document.getElementById('toggle-report-btn').textContent = 'Back to Chart';
-        isReportView = true;
+        ptIsReportView = true;
 
         try {
-            console.log("Fetching report for:", currentScCode);
-            const response = await fetch(`/get_fundamental_report/${currentScCode}`);
+            console.log("Fetching report for:", ptCurrentScCode);
+            const response = await fetch(`/get_fundamental_report/${ptCurrentScCode}`);
             const data = await response.json();
 
             console.log("Data received from TinyDB:", data);
             if (data.error || Object.keys(data).length === 0) {
-                container.innerHTML = `<p style="padding:20px;">No report data found for ${currentScCode}.</p>`;
+                container.innerHTML = `<p style="padding:20px;">No report data found for ${ptCurrentScCode}.</p>`;
                 return;
             }
 
@@ -710,29 +710,29 @@
         document.head.appendChild(toastStyle);
     }
 
-    var pendingSellOrderId = null;
-    var pendingSellStockName = null;
-    var sellDialog = document.getElementById('sellDialog');
+    var ptPendingSellOrderId = null;
+    var ptPendingSellStockName = null;
+    var ptSellDialog = document.getElementById('sellDialog');
 
-    function openSellDialog(orderId, stockName, event) {
+    function ptOpenSellDialog(orderId, stockName, event) {
         event.stopPropagation();
-        pendingSellOrderId = orderId;
-        pendingSellStockName = stockName;
+        ptPendingSellOrderId = orderId;
+        ptPendingSellStockName = stockName;
         document.getElementById('sellDialogText').innerHTML = `Are you sure you want to sell <b>${stockName}</b>?<br><br>This will record the sale at the latest closing price.`;
-        document.getElementById('confirmSellBtn').onclick = executeSellOrder;
-        sellDialog.showModal();
+        document.getElementById('confirmSellBtn').onclick = ptExecuteSellOrder;
+        ptSellDialog.showModal();
     }
     
-    function closeSellDialog() {
-        pendingSellOrderId = null;
-        pendingSellStockName = null;
-        sellDialog.close();
+    function ptCloseSellDialog() {
+        ptPendingSellOrderId = null;
+        ptPendingSellStockName = null;
+        ptSellDialog.close();
     }
 
-    async function executeSellOrder() {
-        if (!pendingSellOrderId) return;
+    async function ptExecuteSellOrder() {
+        if (!ptPendingSellOrderId) return;
         
-        const orderId = pendingSellOrderId;
+        const orderId = ptPendingSellOrderId;
         const confirmBtn = document.getElementById('confirmSellBtn');
         confirmBtn.disabled = true;
         confirmBtn.textContent = 'Selling...';
@@ -745,16 +745,16 @@
             const result = await response.json();
             
             if (response.ok && result.success) {
-                closeSellDialog();
+                ptCloseSellDialog();
                 showToast(result.message, 'success');
                 setTimeout(() => window.location.reload(), 1500);
             } else {
-                closeSellDialog();
+                ptCloseSellDialog();
                 showToast(`Error: ${result.error || 'Failed to sell order'}`, 'error');
             }
         } catch (err) {
             console.error(err);
-            closeSellDialog();
+            ptCloseSellDialog();
             showToast("An error occurred while selling the order.", 'error');
         } finally {
             confirmBtn.disabled = false;

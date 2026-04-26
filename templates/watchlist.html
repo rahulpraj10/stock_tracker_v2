@@ -402,7 +402,7 @@
                             {% set score_class = "score-pending" %}
                         {% endif %}
 
-                        <div class="order-card {{ score_class }}" data-sc-code="{{ order.sc_code }}" onclick="loadChart({{ order.id }}, '{{ order.sc_name }}')">
+                        <div class="order-card {{ score_class }}" data-sc-code="{{ order.sc_code }}" onclick="wlLoadChart({{ order.id }}, '{{ order.sc_name }}')">
                             <div class="order-info">
                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-right: 15px;">
                                     <h4>{{ order.sc_name }} ({{ order.sc_code }})</h4>
@@ -441,9 +441,9 @@
             <div style="display: flex; gap: 8px;">
                 <button id="buy-action-btn" class="btn"
                     style="display:none; padding: 4px 12px; font-size: 12px; background-color: #10b981; color: white; border: none;"
-                    onclick="openBuyPopup()">Buy Stock</button>
+                    onclick="wlOpenBuyPopup()">Buy Stock</button>
                 <button id="toggle-report-btn" class="btn btn-primary"
-                        style="display:none; padding: 4px 12px; font-size: 12px;" onclick="toggleView()">Reports</button>
+                        style="display:none; padding: 4px 12px; font-size: 12px;" onclick="wlToggleView()">Reports</button>
             </div>
         </div>
         <div id="chart-view" style="flex: 1; min-height: 0;">
@@ -487,7 +487,7 @@
     <div class="card" style="width: 90%; max-width: 400px; padding: 24px; background: var(--card-bg); border: 1px solid var(--border-color); box-sizing: border-box;">
         <h3 style="margin-top: 0; margin-bottom: 20px;">Confirm Purchase</h3>
 
-        <form id="pop_buy_form" onsubmit="handleBuySubmit(event)" style="display: flex; flex-direction: column; gap: 16px;">
+        <form id="pop_buy_form" onsubmit="wlHandleBuySubmit(event)" style="display: flex; flex-direction: column; gap: 16px;">
             <div class="form-group">
                 <label>Stock Name</label>
                 <input type="text" id="pop_stock_name" class="form-control" readonly style="background: var(--bg-color); cursor: not-allowed;">
@@ -502,7 +502,7 @@
                 </div>
                 <div class="form-group" style="flex: 1; min-width: 0;">
                     <label>Quantity</label>
-                    <input type="number" id="pop_qty" name="quantity" class="form-control" min="1" value="1" oninput="updateTotal()" style="width: 100%; box-sizing: border-box;">
+                    <input type="number" id="pop_qty" name="quantity" class="form-control" min="1" value="1" oninput="wlUpdateTotal()" style="width: 100%; box-sizing: border-box;">
                 </div>
             </div>
 
@@ -517,7 +517,7 @@
             </div>
 
             <div style="display: flex; gap: 12px; margin-top: 10px;">
-                <button type="button" class="btn" style="flex: 1; background: #6b7280; color: white; border: none;" onclick="closeBuyPopup()">Cancel</button>
+                <button type="button" class="btn" style="flex: 1; background: #6b7280; color: white; border: none;" onclick="wlCloseBuyPopup()">Cancel</button>
                 <button type="submit" class="btn btn-primary" style="flex: 1; border: none;">Confirm Buy</button>
             </div>
         </form>
@@ -529,24 +529,26 @@
     console.log("Watchlist script is being parsed...");
 
     // Use the safe filter and provide a fallback
-    var ordersData = {{ orders|tojson|safe if orders else '[]' }};
+    var wlOrdersData = {{ orders|tojson|safe if orders else '[]' }};
 
     // Add another log to verify data loaded
-    console.log("Orders Data initialized:", ordersData);
+    console.log("Orders Data initialized:", wlOrdersData);
 
-    var chartInstance = null;
-    var activeStockName = "";
-    var activeStockCode = "";
+    var wlChartInstance = null;
+    var wlActiveStockName = "";
+    var wlActiveStockCode = "";
+    var wlCurrentScCode = null;
+    var wlIsReportView = false;
 
-    async function loadChart(orderId, stockName) {
+    async function wlLoadChart(orderId, stockName) {
         console.log("loadChart triggered for:", stockName);
         try {
-            console.log("Current ordersData state:", ordersData); // DEBUG
+            console.log("Current ordersData state:", wlOrdersData); // DEBUG
             // 1. Reset Visibility & Global State
-            activeStockName = stockName;
-            const orderRecord = ordersData.find(o => o.id === orderId);
-            activeStockCode = orderRecord ? orderRecord.sc_code : "";
-            currentScCode = activeStockCode; // For the report view
+            wlActiveStockName = stockName;
+            const orderRecord = wlOrdersData.find(o => o.id === orderId);
+            wlActiveStockCode = orderRecord ? orderRecord.sc_code : "";
+            wlCurrentScCode = wlActiveStockCode; // For the report view
 
             // 2. Fetch Data
             const response = await fetch(`/watchlist_chart_data/${orderId}`);
@@ -555,9 +557,9 @@
 
             // 3. Update Chart
             const ctx = document.getElementById('valueChart').getContext('2d');
-            if (chartInstance) { chartInstance.destroy(); }
+            if (wlChartInstance) { wlChartInstance.destroy(); }
 
-            chartInstance = new Chart(ctx, {
+            wlChartInstance = new Chart(ctx, {
                 type: 'line',
                 data: {
                     labels: data.dates,
@@ -596,27 +598,27 @@
             // 5. Show Action Buttons
             document.getElementById('buy-action-btn').style.display = 'block';
             document.getElementById('toggle-report-btn').style.display = 'block';
-            showChartView();
+            wlShowChartView();
 
         } catch (error) {
             console.error('Error in loadChart:', error);
         }
     }
 
-    function toggleView() {
-        if (isReportView) showChartView();
-        else showReportView();
+    function wlToggleView() {
+        if (wlIsReportView) wlShowChartView();
+        else wlShowReportView();
     }
 
-    function showChartView() {
+    function wlShowChartView() {
         document.getElementById('chart-view').style.display = 'block';
         document.getElementById('report-view').style.display = 'none';
         document.getElementById('toggle-report-btn').textContent = 'Reports';
-        isReportView = false;
+        wlIsReportView = false;
     }
 
-    async function showReportView() {
-        if (!currentScCode) {
+    async function wlShowReportView() {
+        if (!wlCurrentScCode) {
             console.error("No SC Code selected");
             return;
         }
@@ -630,16 +632,16 @@
         if (stats) stats.style.display = 'none';
 
         document.getElementById('toggle-report-btn').textContent = 'Back to Chart';
-        isReportView = true;
+        wlIsReportView = true;
 
         try {
-            console.log("Fetching report for:", currentScCode);
-            const response = await fetch(`/get_fundamental_report/${currentScCode}`);
+            console.log("Fetching report for:", wlCurrentScCode);
+            const response = await fetch(`/get_fundamental_report/${wlCurrentScCode}`);
             const data = await response.json();
 
             console.log("Data received from TinyDB:", data);
             if (data.error || Object.keys(data).length === 0) {
-                container.innerHTML = `<p style="padding:20px;">No report data found for ${currentScCode}.</p>`;
+                container.innerHTML = `<p style="padding:20px;">No report data found for ${wlCurrentScCode}.</p>`;
                 return;
             }
 
@@ -720,12 +722,12 @@
         }
     }
 
-function openBuyPopup() {
+function wlOpenBuyPopup() {
     const modal = document.getElementById('buy-modal');
 
     // Set stock details
-    document.getElementById('pop_stock_name').value = activeStockName;
-    document.getElementById('pop_sc_code').value = activeStockCode;
+    document.getElementById('pop_stock_name').value = wlActiveStockName;
+    document.getElementById('pop_sc_code').value = wlActiveStockCode;
 
     // Set Today's Date
     document.getElementById('pop_date').value = new Date().toISOString().split('T')[0];
@@ -745,14 +747,14 @@ function openBuyPopup() {
     document.getElementById('pop_price').value = price.toFixed(2);
 
     modal.style.display = 'flex';
-    updateTotal();
+    wlUpdateTotal();
 }
 
-function closeBuyPopup() {
+function wlCloseBuyPopup() {
     document.getElementById('buy-modal').style.display = 'none';
 }
 
-function updateTotal() {
+function wlUpdateTotal() {
     const price = parseFloat(document.getElementById('pop_price').value) || 0;
     const qty = parseInt(document.getElementById('pop_qty').value) || 0;
     const total = price * qty;
@@ -764,14 +766,14 @@ function updateTotal() {
     });
 }
 
-async function handleBuySubmit(event) {
+async function wlHandleBuySubmit(event) {
     event.preventDefault();
 
     const form = event.target;
     const formData = new FormData(form);
 
     // 1. IMMEDIATELY close the popup for an instant feel
-    closeBuyPopup();
+    wlCloseBuyPopup();
 
     // 2. Fire and forget (let the background handle the rest)
     try {
