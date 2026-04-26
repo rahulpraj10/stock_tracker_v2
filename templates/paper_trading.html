@@ -341,24 +341,8 @@
             <h3 style="margin-bottom: 12px;">Your Orders</h3>
             
             <div class="order-list" id="order-list-container">
-                <!-- Skeleton Loader -->
-                <div id="skeleton-loader">
-                    {% for i in range(5) %}
-                    <div class="skeleton-card">
-                        <div style="flex: 1;">
-                            <div class="skeleton-text skeleton-title shimmer"></div>
-                            <div class="skeleton-text skeleton-subtitle shimmer"></div>
-                        </div>
-                        <div style="display: flex; gap: 8px;">
-                            <div class="skeleton-button shimmer"></div>
-                            <div class="skeleton-button shimmer"></div>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-
                 <!-- Actual Orders -->
-                <div id="actual-orders" style="display: none; opacity: 0; transition: opacity 0.3s ease-in;">
+                <div id="actual-orders" style="display: block; opacity: 1;">
                     {% if orders %}
                     {% for order in orders %}
                         {# Logic to determine color class based on score #}
@@ -714,17 +698,21 @@
         }, 3000);
     }
     
-    const toastStyle = document.createElement('style');
-    toastStyle.textContent = `
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes fadeOut { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(10px); } }
-        dialog::backdrop { background: rgba(0,0,0,0.4); backdrop-filter: blur(2px); }
-    `;
-    document.head.appendChild(toastStyle);
+    var toastStyle = document.getElementById('toast-style-tag');
+    if (!toastStyle) {
+        toastStyle = document.createElement('style');
+        toastStyle.id = 'toast-style-tag';
+        toastStyle.textContent = `
+            @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+            @keyframes fadeOut { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(10px); } }
+            dialog::backdrop { background: rgba(0,0,0,0.4); backdrop-filter: blur(2px); }
+        `;
+        document.head.appendChild(toastStyle);
+    }
 
-    let pendingSellOrderId = null;
-    let pendingSellStockName = null;
-    const sellDialog = document.getElementById('sellDialog');
+    var pendingSellOrderId = null;
+    var pendingSellStockName = null;
+    var sellDialog = document.getElementById('sellDialog');
 
     function openSellDialog(orderId, stockName, event) {
         event.stopPropagation();
@@ -774,23 +762,8 @@
         }
     }
 
-    // Async Score Fetching & Skeleton Loader
-    document.addEventListener('DOMContentLoaded', async () => {
-        // Handle Skeleton Loader transition
-        const skeletonLoader = document.getElementById('skeleton-loader');
-        const actualOrders = document.getElementById('actual-orders');
-        
-        if (skeletonLoader && actualOrders) {
-            // Give the shimmer effect a little time to play before revealing data
-            setTimeout(() => {
-                skeletonLoader.style.display = 'none';
-                actualOrders.style.display = 'block';
-                // Trigger reflow to ensure the transition works
-                void actualOrders.offsetWidth;
-                actualOrders.style.opacity = '1';
-            }, 600); // 600ms shimmer display time
-        }
-
+    // Async Score Fetching
+    (async function initAsyncFetching() {
         const pendingCards = document.querySelectorAll('.order-card.score-pending');
         for (const card of pendingCards) {
             const scCode = card.dataset.scCode;
@@ -819,7 +792,6 @@
                 if (scoreDisplay) scoreDisplay.innerHTML = `F_Score: Error`;
             }
         }
-    });
-
+    })();
 </script>
 {% endblock %}
