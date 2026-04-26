@@ -234,8 +234,8 @@ def add_cache_control_headers(response):
 def handle_maintenance():
     # This runs before every request, but the "if % 2 == 0"
     # ensures it only actually does work on even days.
-    even_day_cleanup("./flask_session", max_age_hours=24)
-
+    # even_day_cleanup("./flask_session", max_age_hours=24)
+    print('even_day_cleanup')
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
