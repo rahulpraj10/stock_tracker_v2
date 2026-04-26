@@ -9,7 +9,7 @@
         document.documentElement.setAttribute('data-theme', savedTheme);
     </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>StockX</title>
+    <title>Stock Scanner</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -27,6 +27,7 @@
             --table-header-bg: #f9fafb;
             --table-border: #d1d5db;
             --input-bg: #ffffff;
+            --li-bg: white;
         }
 
         :root[data-theme="dark"] {
@@ -38,6 +39,7 @@
             --table-header-bg: #0f172a;
             --table-border: #334155;
             --input-bg: #0f172a;
+            --li-bg: #0f172a;
         }
 
         body, .card, header, table, th, td, input, select {
@@ -62,7 +64,9 @@
             transition: width 0.3s ease, opacity 0.3s ease;
             opacity: 0;
         }
-
+        html {
+        scrollbar-color: #6b7280bf #f0f0f000;
+        }
         /* Generic Skeleton Loader */
         @keyframes global-shimmer {
             0% { background-position: -1000px 0; }
@@ -221,7 +225,9 @@
             background-color: var(--input-bg);
             color: var(--text-main);
         }
-
+        li {
+            background-color: var(--li-bg);
+        }
         input[type="text"]:focus,
         input[type="date"]:focus,
         input[type="password"]:focus,
@@ -404,7 +410,7 @@
                     <line x1="12" y1="20" x2="12" y2="4"></line>
                     <line x1="6" y1="20" x2="6" y2="14"></line>
                 </svg>
-                StockX
+                stock scanner
             </a>
             <nav class="nav-links">
                 {% if current_user.is_authenticated %}
@@ -592,7 +598,7 @@
                         <!-- Right Panel (Chart) -->
                         <div class="skeleton-box global-shimmer" style="flex: 2; min-width: 400px; height: 530px; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; overflow: hidden;">
                             <div style="font-size: 28px; font-weight: 800; color: var(--text-secondary); opacity: 0.2; letter-spacing: 4px; text-transform: uppercase;">
-                                Stock <span style="font-weight: 900; color: #6366f1;">X</span>
+                                Stock <span style="font-weight: 900; color: #6366f1;">Scanner</span>
                             </div>
                             <div style="margin-top: 16px; width: 60%; height: 200px; border-bottom: 2px dashed rgba(156, 163, 175, 0.2); position: relative;">
                                 <!-- Faint chart line illusion -->

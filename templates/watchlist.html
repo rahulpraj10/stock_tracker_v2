@@ -267,10 +267,10 @@
 </div>
 
 <script>
-    const nameInput = document.getElementById('stock_name');
-    const suggestionsList = document.getElementById('suggestions-list');
-    const codeInput = document.getElementById('sc_code');
-    let debounceTimer;
+    var nameInput = document.getElementById('stock_name');
+    var suggestionsList = document.getElementById('suggestions-list');
+    var codeInput = document.getElementById('sc_code');
+    var debounceTimer;
 
     nameInput.addEventListener('input', function () {
         clearTimeout(debounceTimer);
@@ -296,8 +296,8 @@
                         li.style.borderBottom = '1px solid #f3f4f6';
                         li.style.fontSize = '12px';
 
-                        li.addEventListener('mouseenter', () => li.style.backgroundColor = '#f3f4f6');
-                        li.addEventListener('mouseleave', () => li.style.backgroundColor = 'white');
+                        //li.addEventListener('mouseenter', () => li.style.backgroundColor = '#f3f4f6');
+                        //li.addEventListener('mouseleave', () => li.style.backgroundColor = 'white');
 
                         li.addEventListener('click', () => {
                             nameInput.value = stock.sc_name;
