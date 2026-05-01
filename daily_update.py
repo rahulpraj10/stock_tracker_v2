@@ -398,7 +398,7 @@ def create_basket_data():
                                 SELECT SC_CODE, SC_NAME, CLOSE, Date 
                                 FROM stocks 
                                 WHERE SC_CODE IN ({placeholders}) 
-                                AND Date >= date('now', '-100 days')
+                                AND Date >= date('now', '-200 days')
                                 ORDER BY Date ASC
                             """
         df_all = pd.read_sql_query(query, conn, params=all_codes)
