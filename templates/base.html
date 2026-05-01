@@ -3,16 +3,22 @@
 
 <head>
     <meta charset="UTF-8">
+    <script>
+        // Apply theme immediately to prevent white flash
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stock Data Viewer</title>
+    <title>Stock Scanner</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
-            --primary-color: #2563eb;
-            --primary-hover: #1d4ed8;
+            --primary-color: #6366f1; /* Electric Indigo */
+            --primary-hover: #4f46e5;
+            --primary-glow: rgba(99, 102, 241, 0.5);
             --bg-color: #f3f4f6;
             --card-bg: #ffffff;
             --text-main: #1f2937;
@@ -20,6 +26,24 @@
             --border-color: #e5e7eb;
             --table-header-bg: #f9fafb;
             --table-border: #d1d5db;
+            --input-bg: #ffffff;
+            --li-bg: white;
+        }
+
+        :root[data-theme="dark"] {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-main: #f8fafc;
+            --text-secondary: #94a3b8;
+            --border-color: #334155;
+            --table-header-bg: #0f172a;
+            --table-border: #334155;
+            --input-bg: #0f172a;
+            --li-bg: #0f172a;
+        }
+
+        body, .card, header, table, th, td, input, select {
+            transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
         }
 
         * {
@@ -27,6 +51,42 @@
             margin: 0;
             padding: 0;
         }
+
+        /* Top Progress Bar */
+        #top-progress-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 0%;
+            height: 3px;
+            background-color: var(--primary-color);
+            z-index: 9999;
+            transition: width 0.3s ease, opacity 0.3s ease;
+            opacity: 0;
+        }
+        html {
+        scrollbar-color: #6b7280bf #f0f0f000;
+        }
+        /* Generic Skeleton Loader */
+        @keyframes global-shimmer {
+            0% { background-position: -1000px 0; }
+            100% { background-position: 1000px 0; }
+        }
+
+        .global-shimmer {
+            animation: global-shimmer 2s infinite linear;
+            background: linear-gradient(to right, var(--border-color) 4%, var(--card-bg) 25%, var(--border-color) 36%);
+            background-size: 1000px 100%;
+        }
+
+        .generic-skeleton {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+            width: 100%;
+        }
+        .skeleton-header { height: 40px; width: 30%; border-radius: 6px; }
+        .skeleton-box { border-radius: 12px; }
 
         body {
             font-family: 'Inter', sans-serif;
@@ -102,6 +162,7 @@
         .nav-link.active {
             color: var(--primary-color);
             border-bottom-color: var(--primary-color);
+            text-shadow: 0 0 10px rgba(99, 102, 241, 0.3);
         }
 
         .card {
@@ -151,19 +212,27 @@
 
         input[type="text"],
         input[type="date"],
-        input[type="number"] {
+        input[type="password"],
+        input[type="number"],
+        select {
             padding: 10px 14px;
             border: 1px solid var(--border-color);
             border-radius: 6px;
             font-size: 0.95rem;
             outline: none;
-            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+            transition: background-color 0.3s ease, border-color 0.15s ease, box-shadow 0.15s ease, color 0.3s ease;
             font-family: inherit;
+            background-color: var(--input-bg);
+            color: var(--text-main);
         }
-
+        li {
+            background-color: var(--li-bg);
+        }
         input[type="text"]:focus,
         input[type="date"]:focus,
-        input[type="number"]:focus {
+        input[type="password"]:focus,
+        input[type="number"]:focus,
+        select:focus {
             border-color: var(--primary-color);
             box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
         }
@@ -330,6 +399,7 @@
 </head>
 
 <body>
+    <div id="top-progress-bar"></div>
 
     <header>
         <div style="display: flex; align-items: center; height: 100%;">
@@ -340,7 +410,7 @@
                     <line x1="12" y1="20" x2="12" y2="4"></line>
                     <line x1="6" y1="20" x2="6" y2="14"></line>
                 </svg>
-                Stock Data Viewer
+                stock scanner
             </a>
             <nav class="nav-links">
                 {% if current_user.is_authenticated %}
@@ -417,7 +487,25 @@
         </div>
 
         {% if current_user.is_authenticated %}
-        <div style="display: flex; align-items: center; gap: 12px;">
+        <div style="display: flex; align-items: center; gap: 16px;">
+            <button id="theme-toggle" class="btn" style="background: none; border: none; padding: 4px; cursor: pointer; color: var(--text-secondary); display: flex; align-items: center; justify-content: center;" title="Toggle Theme">
+                <!-- Sun Icon (Default shown in dark mode) -->
+                <svg id="theme-icon-sun" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none;">
+                    <circle cx="12" cy="12" r="5"></circle>
+                    <line x1="12" y1="1" x2="12" y2="3"></line>
+                    <line x1="12" y1="21" x2="12" y2="23"></line>
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                    <line x1="1" y1="12" x2="3" y2="12"></line>
+                    <line x1="21" y1="12" x2="23" y2="12"></line>
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                </svg>
+                <!-- Moon Icon (Default shown in light mode) -->
+                <svg id="theme-icon-moon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: block;">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                </svg>
+            </button>
             <div class="user-avatar" style="
                 width: 32px;
                 height: 32px;
@@ -440,7 +528,7 @@
         {% endif %}
     </header>
 
-    <div class="container">
+    <div class="container" id="main-container">
         {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
         {% for category, message in messages %}
@@ -472,6 +560,209 @@
         {% block content %}{% endblock %}
     </div>
 
+    <script>
+        // Pjax SPA Navigation
+        document.addEventListener('DOMContentLoaded', () => {
+            const progressBar = document.getElementById('top-progress-bar');
+            const mainContainer = document.getElementById('main-container');
+
+            const genericSkeleton = `
+                <div class="generic-skeleton" style="display: flex; flex-direction: column; gap: 24px; padding-top: 12px; height: 100%; box-sizing: border-box;">
+                    <!-- Branding & Header Area -->
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <div class="global-shimmer" style="width: 42px; height: 42px; border-radius: 10px; background-color: var(--border-color);"></div>
+                            <div class="global-shimmer" style="width: 140px; height: 24px; border-radius: 6px; background-color: var(--border-color);"></div>
+                        </div>
+                        <div class="global-shimmer" style="width: 220px; height: 38px; border-radius: 19px; background-color: var(--border-color);"></div>
+                    </div>
+
+                    <!-- Top summary cards -->
+                    <div style="display: flex; gap: 16px; flex-wrap: wrap;">
+                        <div class="skeleton-box global-shimmer" style="flex: 1; min-width: 200px; height: 110px; border-radius: 12px;"></div>
+                        <div class="skeleton-box global-shimmer" style="flex: 1; min-width: 200px; height: 110px; border-radius: 12px;"></div>
+                        <div class="skeleton-box global-shimmer" style="flex: 1; min-width: 200px; height: 110px; border-radius: 12px;"></div>
+                        <div class="skeleton-box global-shimmer" style="flex: 1; min-width: 200px; height: 110px; border-radius: 12px;"></div>
+                    </div>
+
+                    <!-- Main content area -->
+                    <div style="display: flex; gap: 24px; flex-wrap: wrap;">
+                        <!-- Left Panel (List) -->
+                        <div style="flex: 1; min-width: 300px; display: flex; flex-direction: column; gap: 16px;">
+                            <div class="skeleton-box global-shimmer" style="height: 120px; border-radius: 12px;"></div>
+                            <div class="skeleton-box global-shimmer" style="height: 120px; border-radius: 12px;"></div>
+                            <div class="skeleton-box global-shimmer" style="height: 120px; border-radius: 12px;"></div>
+                            <div class="skeleton-box global-shimmer" style="height: 120px; border-radius: 12px;"></div>
+                        </div>
+                        
+                        <!-- Right Panel (Chart) -->
+                        <div class="skeleton-box global-shimmer" style="flex: 2; min-width: 400px; height: 530px; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; overflow: hidden;">
+                            <div style="font-size: 28px; font-weight: 800; color: var(--text-secondary); opacity: 0.2; letter-spacing: 4px; text-transform: uppercase;">
+                                Stock <span style="font-weight: 900; color: #6366f1;">Scanner</span>
+                            </div>
+                            <div style="margin-top: 16px; width: 60%; height: 200px; border-bottom: 2px dashed rgba(156, 163, 175, 0.2); position: relative;">
+                                <!-- Faint chart line illusion -->
+                                <svg width="100%" height="100%" preserveAspectRatio="none" viewBox="0 0 100 100" style="opacity: 0.1;">
+                                    <path d="M0,80 Q20,60 40,70 T80,30 T100,10" fill="none" stroke="currentColor" stroke-width="2"/>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            function executeScripts(element) {
+                const scripts = Array.from(element.querySelectorAll('script'));
+                scripts.forEach(oldScript => {
+                    // Do not re-evaluate the flash prevention script
+                    if(oldScript.innerHTML && oldScript.innerHTML.includes("localStorage.getItem('theme')")) {
+                        return;
+                    }
+                    const newScript = document.createElement('script');
+                    Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
+                    
+                    if (oldScript.src) {
+                        newScript.src = oldScript.src;
+                    } else {
+                        newScript.textContent = oldScript.textContent;
+                    }
+                    
+                    oldScript.parentNode.replaceChild(newScript, oldScript);
+                });
+            }
+
+            async function navigateTo(url, pushState = true) {
+                // Show progress bar
+                progressBar.style.opacity = '1';
+                progressBar.style.width = '30%';
+
+                // Inject skeleton immediately
+                mainContainer.innerHTML = genericSkeleton;
+
+                try {
+                    const response = await fetch(url);
+                    if (!response.ok) {
+                        if (response.status === 401) {
+                            window.location.href = url; // Let server handle login redirect
+                            return;
+                        }
+                        throw new Error('Network response was not ok');
+                    }
+                    
+                    const htmlString = await response.text();
+                    progressBar.style.width = '70%';
+
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(htmlString, 'text/html');
+                    
+                    const newContent = doc.getElementById('main-container');
+                    if (newContent) {
+                        mainContainer.innerHTML = newContent.innerHTML;
+                        executeScripts(mainContainer);
+                        document.title = doc.title;
+                        
+                        if (pushState) {
+                            history.pushState({}, '', url);
+                        }
+
+                        // Update active nav links
+                        document.querySelectorAll('.nav-link').forEach(link => {
+                            // Compare paths safely
+                            const linkPath = new URL(link.href).pathname;
+                            const currentPath = new URL(url, window.location.origin).pathname;
+                            if (linkPath === currentPath) {
+                                link.classList.add('active');
+                            } else {
+                                link.classList.remove('active');
+                            }
+                        });
+                    } else {
+                        // Fallback
+                        window.location.href = url;
+                    }
+                } catch (error) {
+                    console.error('Navigation error:', error);
+                    window.location.href = url;
+                } finally {
+                    progressBar.style.width = '100%';
+                    setTimeout(() => {
+                        progressBar.style.opacity = '0';
+                        setTimeout(() => progressBar.style.width = '0%', 300);
+                    }, 300);
+                }
+            }
+
+            document.body.addEventListener('click', (e) => {
+                const link = e.target.closest('.nav-link');
+                if (link && link.href && link.href.startsWith(window.location.origin) && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+                    e.preventDefault();
+                    navigateTo(link.href);
+                }
+            });
+
+            window.addEventListener('popstate', () => {
+                navigateTo(window.location.href, false);
+            });
+
+            // --- Theme Toggle Logic ---
+            const themeToggleBtn = document.getElementById('theme-toggle');
+            const sunIcon = document.getElementById('theme-icon-sun');
+            const moonIcon = document.getElementById('theme-icon-moon');
+
+            function updateThemeIcons(theme) {
+                if (!sunIcon || !moonIcon) return;
+                if(theme === 'dark') {
+                    sunIcon.style.display = 'block';
+                    moonIcon.style.display = 'none';
+                } else {
+                    sunIcon.style.display = 'none';
+                    moonIcon.style.display = 'block';
+                }
+            }
+            
+            // Initialize icons based on already loaded theme
+            updateThemeIcons(document.documentElement.getAttribute('data-theme'));
+
+            if(themeToggleBtn) {
+                themeToggleBtn.addEventListener('click', () => {
+                    const currentTheme = document.documentElement.getAttribute('data-theme');
+                    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                    
+                    document.documentElement.setAttribute('data-theme', newTheme);
+                    localStorage.setItem('theme', newTheme);
+                    updateThemeIcons(newTheme);
+
+                    // Update all active Chart.js instances
+                    if(window.Chart && Chart.instances) {
+                        // Small delay to allow CSS variables to update
+                        setTimeout(() => {
+                            const textColor = getComputedStyle(document.documentElement).getPropertyValue('--text-main').trim();
+                            const gridColor = getComputedStyle(document.documentElement).getPropertyValue('--border-color').trim();
+                            const secTextColor = getComputedStyle(document.documentElement).getPropertyValue('--text-secondary').trim();
+
+                            Object.values(Chart.instances).forEach(chart => {
+                                if(chart.options.plugins && chart.options.plugins.legend) {
+                                    chart.options.plugins.legend.labels.color = secTextColor;
+                                }
+                                if(chart.options.plugins && chart.options.plugins.title) {
+                                    chart.options.plugins.title.color = secTextColor;
+                                }
+                                if(chart.options.scales && chart.options.scales.x) {
+                                    chart.options.scales.x.ticks.color = secTextColor;
+                                    if (chart.options.scales.x.grid) chart.options.scales.x.grid.color = gridColor;
+                                }
+                                if(chart.options.scales && chart.options.scales.y) {
+                                    chart.options.scales.y.ticks.color = secTextColor;
+                                    if (chart.options.scales.y.grid) chart.options.scales.y.grid.color = gridColor;
+                                }
+                                chart.update();
+                            });
+                        }, 50);
+                    }
+                });
+            }
+        });
+    </script>
 </body>
 
 </html>

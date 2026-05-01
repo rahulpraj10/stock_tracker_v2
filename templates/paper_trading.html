@@ -51,6 +51,7 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
+        margin-bottom: 12px; /* Added spacing between cards */
     }
 
     .order-card:hover {
@@ -142,6 +143,39 @@
         background-color: #fee2e2;
     }
 
+    /* Shimmer Skeleton Loader CSS */
+    @keyframes shimmer {
+        0% { background-position: -1000px 0; }
+        100% { background-position: 1000px 0; }
+    }
+
+    .skeleton-card {
+        background-color: var(--bg-color);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        padding: 12px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+    }
+
+    .shimmer {
+        animation: shimmer 2s infinite linear;
+        background: linear-gradient(to right, var(--bg-color) 4%, var(--border-color) 25%, var(--bg-color) 36%);
+        background-size: 1000px 100%;
+    }
+
+    .skeleton-text {
+        height: 14px;
+        border-radius: 4px;
+        margin-bottom: 8px;
+    }
+
+    .skeleton-title { width: 120px; }
+    .skeleton-subtitle { width: 180px; }
+    .skeleton-button { width: 30px; height: 30px; border-radius: 4px; }
+
     /* Responsive Design */
     @media (max-width: 1024px) {
         .paper-trading-container {
@@ -173,9 +207,9 @@
     <form method="POST" class="filter-form" style="display: flex; gap: 16px; align-items: flex-end; position: relative;    flex-wrap: wrap;"
         autocomplete="off">
         <div class="form-group" style="flex: 1.5; position: relative;">
-            <label for="stock_name">Stock Name</label>
-            <input type="text" id="stock_name" class="form-control" placeholder="Type to search..." autocomplete="off">
-            <ul id="suggestions-list" style="
+            <label for="pt_stock_name">Stock Name</label>
+            <input type="text" id="pt_stock_name" class="form-control" placeholder="Type to search..." autocomplete="off">
+            <ul id="pt_suggestions-list" style="
                 position: absolute;
                 top: 100%;
                 left: 0;
@@ -194,8 +228,8 @@
             "></ul>
         </div>
         <div class="form-group" style="flex: 0.8;">
-            <label for="sc_code">Stock Code</label>
-            <input type="text" id="sc_code" name="sc_code" class="form-control" placeholder="e.g. 500325" required>
+            <label for="pt_sc_code">Stock Code</label>
+            <input type="text" id="pt_sc_code" name="sc_code" class="form-control" placeholder="e.g. 500325" required>
         </div>
         <div class="form-group" style="flex: 1;">
             <label for="order_date">Order Date (Min: Nov 03, 2025)</label>
@@ -210,25 +244,25 @@
 </div>
 
 <script>
-    const nameInput = document.getElementById('stock_name');
-    const suggestionsList = document.getElementById('suggestions-list');
-    const codeInput = document.getElementById('sc_code');
-    let debounceTimer;
+    var pt_nameInput = document.getElementById('pt_stock_name');
+    var pt_suggestionsList = document.getElementById('pt_suggestions-list');
+    var pt_codeInput = document.getElementById('pt_sc_code');
+    var pt_debounceTimer;
 
-    nameInput.addEventListener('input', function () {
-        clearTimeout(debounceTimer);
+    pt_nameInput.addEventListener('input', function () {
+        clearTimeout(pt_debounceTimer);
         const query = this.value;
         if (query.length < 2) {
-            suggestionsList.style.display = 'none';
+            pt_suggestionsList.style.display = 'none';
             return;
         }
 
-        debounceTimer = setTimeout(async () => {
+        pt_debounceTimer = setTimeout(async () => {
             try {
                 const response = await fetch(`/api/search_stocks?q=${encodeURIComponent(query)}`);
                 const results = await response.json();
 
-                suggestionsList.innerHTML = '';
+                pt_suggestionsList.innerHTML = '';
                 if (results.length > 0) {
                     results.forEach(stock => {
                         const li = document.createElement('li');
@@ -238,20 +272,20 @@
                         li.style.cursor = 'pointer';
                         li.style.borderBottom = '1px solid #f3f4f6';
                         li.style.fontSize = '12px';
-
-                        li.addEventListener('mouseenter', () => li.style.backgroundColor = '#f3f4f6');
-                        li.addEventListener('mouseleave', () => li.style.backgroundColor = 'white');
+                        //li.style.backgroundColor = '#065f46';
+                        //li.addEventListener('mouseenter', () => li.style.backgroundColor = '#6366f1');
+                        //li.addEventListener('mouseleave', () => li.style.backgroundColor = '#4f46e5');
 
                         li.addEventListener('click', () => {
-                            nameInput.value = stock.sc_name;
-                            codeInput.value = stock.sc_code;
-                            suggestionsList.style.display = 'none';
+                            pt_nameInput.value = stock.sc_name;
+                            pt_codeInput.value = stock.sc_code;
+                            pt_suggestionsList.style.display = 'none';
                         });
-                        suggestionsList.appendChild(li);
+                        pt_suggestionsList.appendChild(li);
                     });
-                    suggestionsList.style.display = 'block';
+                    pt_suggestionsList.style.display = 'block';
                 } else {
-                    suggestionsList.style.display = 'none';
+                   pt_suggestionsList.style.display = 'none';
                 }
             } catch (error) {
                 console.error('Error fetching autocomplete:', error);
@@ -261,8 +295,8 @@
 
     // Close suggestions when clicking outside
     document.addEventListener('click', function (e) {
-        if (e.target !== nameInput && e.target !== suggestionsList) {
-            suggestionsList.style.display = 'none';
+        if (e.target !== pt_nameInput && e.target !== pt_suggestionsList) {
+            pt_suggestionsList.style.display = 'none';
         }
     });
 </script>
@@ -305,44 +339,58 @@
     <div class="left-panel">
         <div class="filter-section" style="height: 100%; display: flex; flex-direction: column;">
             <h3 style="margin-bottom: 12px;">Your Orders</h3>
-            <div class="order-list">
-                {% if orders %}
-                {% for order in orders %}
-                    {# Logic to determine color class based on score #}
-                    {% set score_class = "" %}
-                    {% if order.score > 75 %}
-                        {% set score_class = "score-green" %}
-                    {% elif order.score < 50 %}
-                        {% set score_class = "score-red" %}
-                    {% else %}
-                        {% set score_class = "score-yellow" %}
-                    {% endif %}
-
-                    <div class="order-card {{ score_class }}" onclick="loadChart({{ order.id }}, '{{ order.sc_name }}')">
-                        <div class="order-info">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-right: 15px;">
-                                <h4>{{ order.sc_name }} ({{ order.sc_code }})</h4>
-                                <span style="font-size: 10px; font-weight: bold; opacity: 0.7;">F_Score: {{ order.score }}</span>
-                            </div>
-                            <p>Date: {{ order.order_date }} | Qty: {{ order.quantity }}</p>
-                            {% if order.source_strategy %}
-                            <div style="margin-top: 4px;">
-                                <span style="font-size: 10px; background-color: var(--primary-color); color: white; padding: 2px 6px; border-radius: 10px; display: inline-block;">{{ order.source_strategy }}</span>
-                            </div>
+            
+            <div class="order-list" id="order-list-container">
+                <!-- Actual Orders -->
+                <div id="actual-orders" style="display: block; opacity: 1;">
+                    {% if orders %}
+                    {% for order in orders %}
+                        {# Logic to determine color class based on score #}
+                        {% set score_class = "" %}
+                        {% if order.score != 'Pending' %}
+                            {% if order.score > 75 %}
+                                {% set score_class = "score-green" %}
+                            {% elif order.score < 50 %}
+                                {% set score_class = "score-red" %}
+                            {% else %}
+                                {% set score_class = "score-yellow" %}
                             {% endif %}
+                        {% else %}
+                            {% set score_class = "score-pending" %}
+                        {% endif %}
+
+                        <div class="order-card {{ score_class }}" data-sc-code="{{ order.sc_code }}" onclick="ptLoadChart({{ order.id }}, '{{ order.sc_name }}')">
+                            <div class="order-info">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-right: 15px;">
+                                    <h4>{{ order.sc_name }} ({{ order.sc_code }})</h4>
+                                    <span class="f-score-display" style="font-size: 10px; font-weight: bold; opacity: 0.7;">
+                                        {% if order.score == 'Pending' %}
+                                            F_Score: Loading...
+                                        {% else %}
+                                            F_Score: {{ order.score }}
+                                        {% endif %}
+                                    </span>
+                                </div>
+                                <p>Date: {{ order.order_date }} | Qty: {{ order.quantity }}</p>
+                                {% if order.source_strategy %}
+                                <div style="margin-top: 4px;">
+                                    <span style="font-size: 10px; background-color: var(--primary-color); color: white; padding: 2px 6px; border-radius: 10px; display: inline-block;">{{ order.source_strategy }}</span>
+                                </div>
+                                {% endif %}
+                            </div>
+                            <div style="display: flex; gap: 8px; margin-top: 8px;">
+                                <button type="button" class="btn btn-primary" onclick="ptOpenSellDialog({{ order.id }}, '{{ order.sc_name }}', event)" title="Sell Order" style="background-color: #f59e0b; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg></button>
+                                <form action="{{ url_for('delete_order', order_id=order.id) }}" method="POST"
+                                    onsubmit="event.stopPropagation(); return confirm('Are you sure you want to delete this order?');">
+                                    <button type="submit" class="delete-btn" title="Delete Order">&times;</button>
+                                </form>
+                            </div>
                         </div>
-                        <div style="display: flex; gap: 8px; margin-top: 8px;">
-                            <button type="button" class="btn btn-primary" onclick="openSellDialog({{ order.id }}, '{{ order.sc_name }}', event)" title="Sell Order" style="background-color: #f59e0b; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg></button>
-                            <form action="{{ url_for('delete_order', order_id=order.id) }}" method="POST"
-                                onsubmit="event.stopPropagation(); return confirm('Are you sure you want to delete this order?');">
-                                <button type="submit" class="delete-btn" title="Delete Order">&times;</button>
-                            </form>
-                        </div>
-                    </div>
-                {% endfor %}
-                {% else %}
-                <p class="no-data">No orders placed yet.</p>
-                {% endif %}
+                    {% endfor %}
+                    {% else %}
+                    <p class="no-data">No orders placed yet.</p>
+                    {% endif %}
+                </div>
             </div>
         </div>
     </div>
@@ -351,7 +399,7 @@
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
             <h4 id="panel-title">Stock Performance</h4>
             <button id="toggle-report-btn" class="btn btn-primary"
-                    style="display:none; height: 40px;" onclick="toggleView()">Reports</button>
+                    style="display:none; height: 40px;" onclick="ptToggleView()">Reports</button>
         </div>
         <div id="chart-view" style="flex: 1; min-height: 0;">
             <canvas id="valueChart"></canvas>
@@ -409,18 +457,18 @@
         <h4 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600; color: var(--text-main);">Confirm Sale</h4>
         <p id="sellDialogText" style="margin: 0 0 20px 0; font-size: 14px; color: var(--text-secondary); line-height: 1.5;"></p>
         <div style="display: flex; justify-content: flex-end; gap: 12px;">
-            <button onclick="closeSellDialog()" class="btn btn-outline" style="padding: 6px 16px;">Cancel</button>
+            <button onclick="ptCloseSellDialog()" class="btn btn-outline" style="padding: 6px 16px;">Cancel</button>
             <button id="confirmSellBtn" class="btn btn-primary" style="padding: 6px 16px; background-color: #f59e0b; border: none; color: white;">Confirm Sell</button>
         </div>
     </div>
 </dialog>
 
 <script>
-    let chartInstance = null;
-    let currentScCode = null;
-    let isReportView = false;
+    var ptChartInstance = null;
+    var ptCurrentScCode = null;
+    var ptIsReportView = false;
 
-    async function loadChart(orderId, stockName) {
+    async function ptLoadChart(orderId, stockName) {
         try {
             const response = await fetch(`/order_chart_data/${orderId}`);
             if (!response.ok) throw new Error('Failed to fetch data');
@@ -430,11 +478,11 @@
             // Update Chart
             const ctx = document.getElementById('valueChart').getContext('2d');
 
-            if (chartInstance) {
-                chartInstance.destroy();
+            if (ptChartInstance) {
+                ptChartInstance.destroy();
             }
 
-            chartInstance = new Chart(ctx, {
+            ptChartInstance = new Chart(ctx, {
                 type: 'line',
                 data: {
                     labels: data.dates,
@@ -497,11 +545,11 @@
             }
 
             const orderRecord = {{ orders|tojson }}.find(o => o.id === orderId);
-            currentScCode = orderRecord.sc_code;
+            ptCurrentScCode = orderRecord.sc_code;
             document.getElementById('toggle-report-btn').style.display = 'block';
 
             // Reset view to Chart if it was on Report
-            showChartView();
+            ptShowChartView();
 
         }
         catch (error) {
@@ -510,20 +558,20 @@
         }
     }
 
-    function toggleView() {
-        if (isReportView) showChartView();
-        else showReportView();
+    function ptToggleView() {
+        if (ptIsReportView) ptShowChartView();
+        else ptShowReportView();
     }
 
-    function showChartView() {
+    function ptShowChartView() {
         document.getElementById('chart-view').style.display = 'block';
         document.getElementById('report-view').style.display = 'none';
         document.getElementById('toggle-report-btn').textContent = 'Reports';
-        isReportView = false;
+        ptIsReportView = false;
     }
 
-    async function showReportView() {
-        if (!currentScCode) {
+    async function ptShowReportView() {
+        if (!ptCurrentScCode) {
             console.error("No SC Code selected");
             return;
         }
@@ -537,16 +585,16 @@
         if (stats) stats.style.display = 'none';
 
         document.getElementById('toggle-report-btn').textContent = 'Back to Chart';
-        isReportView = true;
+        ptIsReportView = true;
 
         try {
-            console.log("Fetching report for:", currentScCode);
-            const response = await fetch(`/get_fundamental_report/${currentScCode}`);
+            console.log("Fetching report for:", ptCurrentScCode);
+            const response = await fetch(`/get_fundamental_report/${ptCurrentScCode}`);
             const data = await response.json();
 
             console.log("Data received from TinyDB:", data);
             if (data.error || Object.keys(data).length === 0) {
-                container.innerHTML = `<p style="padding:20px;">No report data found for ${currentScCode}.</p>`;
+                container.innerHTML = `<p style="padding:20px;">No report data found for ${ptCurrentScCode}.</p>`;
                 return;
             }
 
@@ -650,37 +698,41 @@
         }, 3000);
     }
     
-    const toastStyle = document.createElement('style');
-    toastStyle.textContent = `
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes fadeOut { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(10px); } }
-        dialog::backdrop { background: rgba(0,0,0,0.4); backdrop-filter: blur(2px); }
-    `;
-    document.head.appendChild(toastStyle);
+    var toastStyle = document.getElementById('toast-style-tag');
+    if (!toastStyle) {
+        toastStyle = document.createElement('style');
+        toastStyle.id = 'toast-style-tag';
+        toastStyle.textContent = `
+            @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+            @keyframes fadeOut { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(10px); } }
+            dialog::backdrop { background: rgba(0,0,0,0.4); backdrop-filter: blur(2px); }
+        `;
+        document.head.appendChild(toastStyle);
+    }
 
-    let pendingSellOrderId = null;
-    let pendingSellStockName = null;
-    const sellDialog = document.getElementById('sellDialog');
+    var ptPendingSellOrderId = null;
+    var ptPendingSellStockName = null;
+    var ptSellDialog = document.getElementById('sellDialog');
 
-    function openSellDialog(orderId, stockName, event) {
+    function ptOpenSellDialog(orderId, stockName, event) {
         event.stopPropagation();
-        pendingSellOrderId = orderId;
-        pendingSellStockName = stockName;
+        ptPendingSellOrderId = orderId;
+        ptPendingSellStockName = stockName;
         document.getElementById('sellDialogText').innerHTML = `Are you sure you want to sell <b>${stockName}</b>?<br><br>This will record the sale at the latest closing price.`;
-        document.getElementById('confirmSellBtn').onclick = executeSellOrder;
-        sellDialog.showModal();
+        document.getElementById('confirmSellBtn').onclick = ptExecuteSellOrder;
+        ptSellDialog.showModal();
     }
     
-    function closeSellDialog() {
-        pendingSellOrderId = null;
-        pendingSellStockName = null;
-        sellDialog.close();
+    function ptCloseSellDialog() {
+        ptPendingSellOrderId = null;
+        ptPendingSellStockName = null;
+        ptSellDialog.close();
     }
 
-    async function executeSellOrder() {
-        if (!pendingSellOrderId) return;
+    async function ptExecuteSellOrder() {
+        if (!ptPendingSellOrderId) return;
         
-        const orderId = pendingSellOrderId;
+        const orderId = ptPendingSellOrderId;
         const confirmBtn = document.getElementById('confirmSellBtn');
         confirmBtn.disabled = true;
         confirmBtn.textContent = 'Selling...';
@@ -693,16 +745,16 @@
             const result = await response.json();
             
             if (response.ok && result.success) {
-                closeSellDialog();
+                ptCloseSellDialog();
                 showToast(result.message, 'success');
                 setTimeout(() => window.location.reload(), 1500);
             } else {
-                closeSellDialog();
+                ptCloseSellDialog();
                 showToast(`Error: ${result.error || 'Failed to sell order'}`, 'error');
             }
         } catch (err) {
             console.error(err);
-            closeSellDialog();
+            ptCloseSellDialog();
             showToast("An error occurred while selling the order.", 'error');
         } finally {
             confirmBtn.disabled = false;
@@ -710,5 +762,36 @@
         }
     }
 
+    // Async Score Fetching
+    (async function initAsyncFetching() {
+        const pendingCards = document.querySelectorAll('.order-card.score-pending');
+        for (const card of pendingCards) {
+            const scCode = card.dataset.scCode;
+            if (!scCode) continue;
+
+            try {
+                const response = await fetch(`/api/get_score/${scCode}`);
+                const data = await response.json();
+                
+                if (data.score !== undefined) {
+                    // Update score display
+                    const scoreDisplay = card.querySelector('.f-score-display');
+                    if (scoreDisplay) {
+                        scoreDisplay.innerHTML = `F_Score: ${data.score}`;
+                    }
+
+                    // Update class
+                    card.classList.remove('score-pending');
+                    if (data.score > 75) card.classList.add('score-green');
+                    else if (data.score < 50) card.classList.add('score-red');
+                    else card.classList.add('score-yellow');
+                }
+            } catch (err) {
+                console.error('Failed to fetch score for', scCode, err);
+                const scoreDisplay = card.querySelector('.f-score-display');
+                if (scoreDisplay) scoreDisplay.innerHTML = `F_Score: Error`;
+            }
+        }
+    })();
 </script>
 {% endblock %}
