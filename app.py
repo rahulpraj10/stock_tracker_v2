@@ -20,6 +20,7 @@ import numpy as np
 import pytz
 import time
 import json
+import pickle
 from flask_session import Session
 
 IST = pytz.timezone('Asia/Kolkata')
@@ -29,6 +30,7 @@ IST = pytz.timezone('Asia/Kolkata')
 STRATEGY_CACHE = {}
 BASKET_CACHE = {}
 USER_BASKET_CACHE = {}
+
 
 def format_data_for_render(data):
     for stock_code, details in data.items():
@@ -40,6 +42,7 @@ def format_data_for_render(data):
                     # Slice the first 10 characters "YYYY-MM-DD"
                     record['Date'] = record['Date'][:10]
     return data
+
 
 def even_day_cleanup(session_folder, max_age_hours=24):
     now_ist = datetime.now(IST)
@@ -80,6 +83,7 @@ def json_safe(obj):
     elif isinstance(obj, float) and (np.isnan(obj) or np.isinf(obj)):
         return None  # JSON doesn't support NaN; 'None' becomes 'null'
     return obj
+
 
 def init_db():
     conn = get_orders_db_connection()
@@ -183,9 +187,9 @@ app.secret_key = 'your_secret_key_here_change_in_production'  # For development
 
 # --- The "Clean" Filesystem Config ---
 app.config["SESSION_TYPE"] = "filesystem"
-app.config["SESSION_FILE_DIR"] = "./flask_session" # Folder for the data
-app.config["SESSION_PERMANENT"] = False           # Delete when browser closes
-app.config["SESSION_USE_SIGNER"] = True           # Extra security
+app.config["SESSION_FILE_DIR"] = "./flask_session"  # Folder for the data
+app.config["SESSION_PERMANENT"] = False  # Delete when browser closes
+app.config["SESSION_USE_SIGNER"] = True  # Extra security
 Session(app)
 
 app.permanent_session_lifetime = timedelta(minutes=5)
@@ -230,11 +234,13 @@ def add_cache_control_headers(response):
         response.headers['Expires'] = '0'
     return response
 
+
 @app.before_request
 def handle_maintenance():
     # This runs before every request, but the "if % 2 == 0"
     # ensures it only actually does work on even days.
-    even_day_cleanup("./flask_session", max_age_hours=24)
+    # even_day_cleanup("./flask_session", max_age_hours=24)
+    print('even_day_cleanup')
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -281,6 +287,8 @@ INDICES_MAP = {
 }
 
 INDICES_Performance = dict.fromkeys(INDICES_MAP, 0)
+
+
 @app.route('/', methods=['GET', 'POST'])
 @login_required
 def index():
@@ -371,7 +379,8 @@ def index():
         conn.close()
 
     tickers = list(INDICES_MAP.values())
-    #today_str = date.today().isoformat()
+
+    # today_str = date.today().isoformat()
 
     def get_smart_data():
         now_ist = datetime.now(IST)
@@ -384,7 +393,7 @@ def index():
             effective_date = now_ist.date()
         return effective_date
 
-    today_str =get_smart_data()
+    today_str = get_smart_data()
     print('Today str', today_str)
     data1 = _get_all_index_data(today_str)
 
@@ -409,17 +418,18 @@ def index():
             INDICES_Performance[name] = 0.0
 
     return render_template('index.html',
-                         data=data,
-                         columns=columns,
-                         sc_code=sc_code_filter,
-                         sc_name=sc_name_filter,
-                         sc_group=sc_group_filter,
-                         date=date_filter,
-                         page=page,
-                         total_pages=total_pages,
-                         total_records=total_records,
-                         indices=INDICES_MAP,
-                         index_performance = INDICES_Performance)
+                           data=data,
+                           columns=columns,
+                           sc_code=sc_code_filter,
+                           sc_name=sc_name_filter,
+                           sc_group=sc_group_filter,
+                           date=date_filter,
+                           page=page,
+                           total_pages=total_pages,
+                           total_records=total_records,
+                           indices=INDICES_MAP,
+                           index_performance=INDICES_Performance)
+
 
 @app.route('/strategies', methods=['GET', 'POST'])
 @login_required
@@ -542,7 +552,7 @@ def strategies():
 
     return render_template('strategies.html',
                            strategy=selected_strategy,
-                           #results=current_results,
+                           # results=current_results,
                            cached_data=session.get('cached_data', {}),
                            params=params)
 
@@ -560,77 +570,90 @@ def baskets():
     # 3. Check Cache.
     if "data" in BASKET_CACHE and BASKET_CACHE.get("date") == effective_date:
         return render_template('baskets.html', baskets=BASKET_CACHE["data"])
-    with open('BSE_baskets.json', 'r') as fp:
-        BASKETS = json.load(fp)
-
-    conn = get_stock_db_connection()
-    all_baskets_results = {}
-
+    # else read the pkl file and update the cache
     try:
-        all_codes = list(set(int(code) for codes in BASKETS.values() for code in codes))
-        # Query all_codes once, THEN loop through the dataframe to split by basket.
-        placeholders = ','.join(['?'] * len(all_codes))
-        query = f"""
-                        SELECT SC_CODE, SC_NAME, CLOSE, Date 
-                        FROM stocks 
-                        WHERE SC_CODE IN ({placeholders}) 
-                        AND Date >= date('now', '-100 days')
-                        ORDER BY Date ASC
-                    """
-        df_all = pd.read_sql_query(query, conn, params=all_codes)
-
-        for basket_name, sc_codes in BASKETS.items():
-            basket_stocks = []
-            clean_sc_codes = [int(code) for code in sc_codes]
-            basket_df = df_all[df_all['SC_CODE'].isin(clean_sc_codes)]
-
-            for code in sc_codes:
-                stock_df = basket_df[basket_df['SC_CODE'] == code].copy()
-                if stock_df.empty: continue
-
-                # Get latest values
-                latest = stock_df.iloc[-1]
-                current_price = latest['CLOSE']
-
-                # 1. Calculate RSI (14 period)
-                delta = stock_df['CLOSE'].diff()
-                gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-                loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-                rs = gain / loss
-                rsi = 100 - (100 / (1 + rs)).iloc[-1]
-
-                # 2. Trend Indicators (Current vs X days ago)
-                def get_trend(days):
-                    if len(stock_df) >= days:
-                        prev_price = stock_df.iloc[-days]['CLOSE']
-                        return "up" if current_price > prev_price else "down"
-                    return "neutral"
-
-                basket_stocks.append({
-                    "sc_code": code,
-                    "name": latest['SC_NAME'],
-                    "price": round(current_price, 2),
-                    "rsi": round(rsi, 2) if not pd.isna(rsi) else "-",
-                    "trends": {
-                        "5d": get_trend(5),
-                        "15d": get_trend(15),
-                        "30d": get_trend(30),
-                        "90d": get_trend(90)
-                    }
-                })
-
-            all_baskets_results[basket_name] = basket_stocks
-
-    finally:
-        conn.close()
-
-    BASKET_CACHE["date"] = effective_date
-    BASKET_CACHE["data"] = all_baskets_results
+        with open('StockData/basket_data.pkl', 'rb') as file:
+            # Deserialize the object from the file
+            all_baskets_results = pickle.load(file)
+        BASKET_CACHE["date"] = effective_date
+        BASKET_CACHE["data"] = all_baskets_results
+    except FileNotFoundError as e:
+        print(e)
     return render_template('baskets.html', baskets=all_baskets_results)
+    # with open('BSE_baskets.json', 'r') as fp:
+    #     BASKETS = json.load(fp)
+    #
+    # conn = get_stock_db_connection()
+    # all_baskets_results = {}
+    #
+    # try:
+    #     all_codes = list(set(int(code) for codes in BASKETS.values() for code in codes))
+    #     # Query all_codes once, THEN loop through the dataframe to split by basket.
+    #     placeholders = ','.join(['?'] * len(all_codes))
+    #     query = f"""
+    #                     SELECT SC_CODE, SC_NAME, CLOSE, Date
+    #                     FROM stocks
+    #                     WHERE SC_CODE IN ({placeholders})
+    #                     AND Date >= date('now', '-100 days')
+    #                     ORDER BY Date ASC
+    #                 """
+    #     df_all = pd.read_sql_query(query, conn, params=all_codes)
+    #
+    #     for basket_name, sc_codes in BASKETS.items():
+    #         basket_stocks = []
+    #         clean_sc_codes = [int(code) for code in sc_codes]
+    #         basket_df = df_all[df_all['SC_CODE'].isin(clean_sc_codes)]
+    #
+    #         for code in sc_codes:
+    #             stock_df = basket_df[basket_df['SC_CODE'] == code].copy()
+    #             if stock_df.empty: continue
+    #
+    #             # Get latest values
+    #             latest = stock_df.iloc[-1]
+    #             current_price = latest['CLOSE']
+    #
+    #             # 1. Calculate RSI (14 period)
+    #             delta = stock_df['CLOSE'].diff()
+    #             gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+    #             loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+    #             rs = gain / loss
+    #             rsi = 100 - (100 / (1 + rs)).iloc[-1]
+    #
+    #             # 2. Trend Indicators (Current vs X days ago)
+    #             def get_trend(days):
+    #                 if len(stock_df) >= days:
+    #                     prev_price = stock_df.iloc[-days]['CLOSE']
+    #                     return "up" if current_price > prev_price else "down"
+    #                 return "neutral"
+    #
+    #             basket_stocks.append({
+    #                 "sc_code": code,
+    #                 "name": latest['SC_NAME'],
+    #                 "price": round(current_price, 2),
+    #                 "rsi": round(rsi, 2) if not pd.isna(rsi) else "-",
+    #                 "trends": {
+    #                     "5d": get_trend(5),
+    #                     "15d": get_trend(15),
+    #                     "30d": get_trend(30),
+    #                     "90d": get_trend(90)
+    #                 }
+    #             })
+    #
+    #         all_baskets_results[basket_name] = basket_stocks
+    #
+    # finally:
+    #     conn.close()
+    #
+    # BASKET_CACHE["date"] = effective_date
+    # BASKET_CACHE["data"] = all_baskets_results
+    return render_template('baskets.html', baskets=all_baskets_results)
+
 
 # Initialize TinyDB (adjust path as needed)
 tdb = TinyDB('fundamentals_scores.json')
 ScoreQuery = Query()
+
+
 @app.route('/paper_trading', methods=['GET', 'POST'])
 @login_required
 def paper_trading():
@@ -715,12 +738,14 @@ def paper_trading():
         cur = conn_orders.cursor()
 
         if is_postgres:
-            cur.execute("SELECT * FROM orders WHERE username = %s AND status = 'OPEN' ORDER BY created_at DESC", (current_user.id,))
+            cur.execute("SELECT * FROM orders WHERE username = %s AND status = 'OPEN' ORDER BY created_at DESC",
+                        (current_user.id,))
         else:
-            cur.execute("SELECT * FROM orders WHERE username = ? AND status = 'OPEN' ORDER BY created_at DESC", (current_user.id,))
+            cur.execute("SELECT * FROM orders WHERE username = ? AND status = 'OPEN' ORDER BY created_at DESC",
+                        (current_user.id,))
 
         orders = cur.fetchall()
-        #print(len(orders))
+        # print(len(orders))
         # Get scores from tinyb,
         # Run a scan of all unique SC_CODE in orders. Cheeck if all those SC_CODES are present in tiny DB
         # For code which are not present, call function to generate code and push to tiny db
@@ -741,28 +766,13 @@ def paper_trading():
         # 1. Get unique SC_CODEs from the user's orders
         unique_sc_codes = {order['sc_code'] for order in orders_list}
 
-        # 2. Check TinyDB and generate missing scores
-        for sc in unique_sc_codes:
-            record = tdb.get(ScoreQuery.sc_code == sc)
-
-            if not record:
-                # Call function for missing records
-                new_score, fundamentals_dict = create_score(sc)
-
-                # Sanitize and store in TinyDB
-                # (Assuming json_safe is the helper we discussed earlier)
-                tdb.insert({
-                    'sc_code': sc,
-                    'score': float(new_score),
-                    'data': json_safe(fundamentals_dict),
-                    'last_updated': datetime.now().isoformat()
-                })
-
-        # 3. Update orders_list with actual scores from TinyDB
-        # We perform a second pass to map scores to the display list
+        # 2. Update orders_list with actual scores from TinyDB
         for order in orders_list:
             record = tdb.get(ScoreQuery.sc_code == order['sc_code'])
-            order['score'] = round(record['score'] if record else 0.0,2)
+            if record:
+                order['score'] = round(record['score'], 2)
+            else:
+                order['score'] = 'Pending'
     # --- TINYDB SCORE LOGIC END ---
 
     # Calculate Portfolio Summary
@@ -772,14 +782,31 @@ def paper_trading():
     stock_conn = get_stock_db_connection()
     if orders and stock_conn:
         try:
+            # OPTIMIZED: Fetch all needed stocks in one single query
+            unique_sc_codes = list(set(order['sc_code'] for order in orders))
+            if not unique_sc_codes:
+                raise Exception("No unique sc_codes found")
+
+            placeholders = ','.join(['?'] * len(unique_sc_codes))
+            min_date = min(order['order_date'] for order in orders)
+
+            query = f'SELECT "SCRIP CODE" as sc_code, Close, Date FROM stocks WHERE "SCRIP CODE" IN ({placeholders}) AND Date >= ? ORDER BY Date ASC'
+
+            params = unique_sc_codes + [min_date]
+            all_stock_data = stock_conn.execute(query, params).fetchall()
+
+            # Group by SC_CODE
+            grouped_data = {}
+            for row in all_stock_data:
+                sc = str(row['sc_code'])
+                if sc not in grouped_data:
+                    grouped_data[sc] = []
+                grouped_data[sc].append(row)
+
             for order in orders:
                 try:
-                    # Optimized: Could fetch all needed stocks in one go, but this is fine for now
-                    # We need the price on order_date and current price
-                    # Query the main 'stocks' table for the specific SCRIP CODE
-                    # usage of "SCRIP CODE" (quoted) to handle space in column name
-                    query = 'SELECT Close, Date FROM stocks WHERE "SCRIP CODE" = ? ORDER BY Date ASC'
-                    stock_data = stock_conn.execute(query, (order['sc_code'],)).fetchall()
+                    sc_code_str = str(order['sc_code'])
+                    stock_data = grouped_data.get(sc_code_str, [])
 
                     if stock_data:
                         # Find Purchase Price
@@ -787,16 +814,12 @@ def paper_trading():
                         order_date_str = order['order_date']
 
                         # Find first date >= order_date
-                        # Since list is sorted by date ASC, we can iterate
                         for row in stock_data:
                             if row['Date'] >= order_date_str:
                                 purchase_price = float(row['Close'])
                                 break
 
-                        # If date is in future relative to data, use last available?
-                        # Or if we didn't find any date >= order_date (unlikely if order validated)
                         if purchase_price == 0.0 and stock_data:
-                            # Fallback to last close if order date is very recent/future
                             purchase_price = float(stock_data[-1]['Close'])
 
                         current_price = float(stock_data[-1]['Close'])
@@ -894,6 +917,7 @@ def get_fundamental_report(sc_code):
 
         return jsonified_data
     return jsonify({"error": "No report data found"}), 404
+
 
 @app.route('/delete_order/<int:order_id>', methods=['POST'])
 @login_required
@@ -1007,7 +1031,8 @@ def order_chart_data(order_id):
                             unit_purchase_price = float(chart_rows[0]['CLOSE'])
                             unit_current_price = float(chart_rows[-1]['CLOSE'])
 
-                            pct_change = ((unit_current_price - unit_purchase_price) / unit_purchase_price) * 100 if unit_purchase_price != 0 else 0
+                            pct_change = ((
+                                                      unit_current_price - unit_purchase_price) / unit_purchase_price) * 100 if unit_purchase_price != 0 else 0
 
                             data["stats"] = {
                                 "purchase_price": unit_purchase_price * quantity,
@@ -1015,7 +1040,7 @@ def order_chart_data(order_id):
                                 "pct_change": round(pct_change, 2),
                                 "profit_loss": (unit_current_price - unit_purchase_price) * quantity,
                                 "rsi": tech_indicators['rsi'] if tech_indicators else "N/A",
-                                "rsi_signal" : tech_indicators['rsi_signal'] if tech_indicators else "N/A",
+                                "rsi_signal": tech_indicators['rsi_signal'] if tech_indicators else "N/A",
                                 "vwap": tech_indicators['vwap'] if tech_indicators else "N/A",
                                 "bb_signal": tech_indicators['bb_signal'] if tech_indicators else "Neutral"
                             }
@@ -1050,28 +1075,31 @@ def sell_order(order_id):
 
     try:
         cur = conn.cursor()
-        
+
         # Verify order belongs to user and is OPEN
         if is_postgres:
-            cur.execute("SELECT * FROM orders WHERE id = %s AND username = %s AND status = 'OPEN'", (order_id, current_user.id))
+            cur.execute("SELECT * FROM orders WHERE id = %s AND username = %s AND status = 'OPEN'",
+                        (order_id, current_user.id))
         else:
-            cur.execute("SELECT * FROM orders WHERE id = ? AND username = ? AND status = 'OPEN'", (order_id, current_user.id))
-            
+            cur.execute("SELECT * FROM orders WHERE id = ? AND username = ? AND status = 'OPEN'",
+                        (order_id, current_user.id))
+
         order = cur.fetchone()
-        
+
         if not order:
             cur.close()
             return jsonify({'error': 'Order not found or already sold.'}), 404
-            
+
         sc_code = order['sc_code']
-        
+
         # Get latest price
         conn_stock = get_stock_db_connection()
         sell_price = 0.0
         if conn_stock:
             try:
                 stock_cur = conn_stock.cursor()
-                stock_cur.execute("SELECT CLOSE FROM stocks WHERE CAST(SC_CODE AS TEXT) = ? ORDER BY Date DESC LIMIT 1", (sc_code,))
+                stock_cur.execute("SELECT CLOSE FROM stocks WHERE CAST(SC_CODE AS TEXT) = ? ORDER BY Date DESC LIMIT 1",
+                                  (sc_code,))
                 stock_row = stock_cur.fetchone()
                 if stock_row:
                     sell_price = float(stock_row['CLOSE'])
@@ -1079,22 +1107,24 @@ def sell_order(order_id):
                 print(f"Error getting stock price for sell: {e}")
             finally:
                 conn_stock.close()
-                
+
         if sell_price == 0.0:
             cur.close()
             return jsonify({'error': 'Could not fetch latest stock price.'}), 500
-            
+
         sell_date = datetime.now().strftime('%Y-%m-%d')
-        
+
         # Update order
         if is_postgres:
-            cur.execute("UPDATE orders SET status = 'SOLD', sell_date = %s, sell_price = %s WHERE id = %s", (sell_date, sell_price, order_id))
+            cur.execute("UPDATE orders SET status = 'SOLD', sell_date = %s, sell_price = %s WHERE id = %s",
+                        (sell_date, sell_price, order_id))
         else:
-            cur.execute("UPDATE orders SET status = 'SOLD', sell_date = ?, sell_price = ? WHERE id = ?", (sell_date, sell_price, order_id))
-            
+            cur.execute("UPDATE orders SET status = 'SOLD', sell_date = ?, sell_price = ? WHERE id = ?",
+                        (sell_date, sell_price, order_id))
+
         conn.commit()
         cur.close()
-        
+
         return jsonify({'success': True, 'message': 'Order marked as sold successfully.'})
     except Exception as e:
         print(f"Error selling order: {e}")
@@ -1112,27 +1142,31 @@ def sold_orders():
         return redirect(url_for('index'))
 
     is_postgres = 'psycopg2' in str(type(conn_orders))
-    
+
     orders = []
     try:
         cur = conn_orders.cursor()
         if is_postgres:
-            cur.execute("SELECT * FROM orders WHERE username = %s AND status = 'SOLD' ORDER BY sell_date DESC, created_at DESC", (current_user.id,))
+            cur.execute(
+                "SELECT * FROM orders WHERE username = %s AND status = 'SOLD' ORDER BY sell_date DESC, created_at DESC",
+                (current_user.id,))
         else:
-            cur.execute("SELECT * FROM orders WHERE username = ? AND status = 'SOLD' ORDER BY sell_date DESC, created_at DESC", (current_user.id,))
-            
+            cur.execute(
+                "SELECT * FROM orders WHERE username = ? AND status = 'SOLD' ORDER BY sell_date DESC, created_at DESC",
+                (current_user.id,))
+
         orders = cur.fetchall()
         cur.close()
     except Exception as e:
         print(f"Error fetching sold orders: {e}")
     finally:
         conn_orders.close()
-        
+
     orders_list = [dict(row) for row in orders]
-    
+
     total_invested = 0.0
     total_returned = 0.0
-    
+
     stock_conn = get_stock_db_connection()
     if orders_list and stock_conn:
         try:
@@ -1140,9 +1174,10 @@ def sold_orders():
                 try:
                     sc_code = order['sc_code']
                     stock_cur = stock_conn.cursor()
-                    stock_cur.execute("SELECT Date, CLOSE FROM stocks WHERE CAST(SC_CODE AS TEXT) = ? ORDER BY Date ASC", (sc_code,))
+                    stock_cur.execute(
+                        "SELECT Date, CLOSE FROM stocks WHERE CAST(SC_CODE AS TEXT) = ? ORDER BY Date ASC", (sc_code,))
                     stock_data = [{'Date': r['Date'], 'Close': float(r['CLOSE'])} for r in stock_cur.fetchall()]
-                    
+
                     purchase_price = 0.0
                     order_date_str = order['order_date']
 
@@ -1153,13 +1188,14 @@ def sold_orders():
 
                     if purchase_price == 0.0 and stock_data:
                         purchase_price = float(stock_data[-1]['Close'])
-                        
+
                     sell_price = float(order['sell_price']) if order['sell_price'] else 0.0
-                    
+
                     order['purchase_price'] = purchase_price
                     order['pnl'] = (sell_price - purchase_price) * order['quantity']
-                    order['pnl_pct'] = ((sell_price - purchase_price) / purchase_price * 100) if purchase_price > 0 else 0.0
-                    
+                    order['pnl_pct'] = (
+                                (sell_price - purchase_price) / purchase_price * 100) if purchase_price > 0 else 0.0
+
                     total_invested += purchase_price * order['quantity']
                     total_returned += sell_price * order['quantity']
                 except Exception as e:
@@ -1170,11 +1206,11 @@ def sold_orders():
             stock_conn.close()
     elif stock_conn:
         stock_conn.close()
-        
+
     total_pl = total_returned - total_invested
     total_pl_pct = (total_pl / total_invested * 100) if total_invested > 0 else 0.0
 
-    return render_template('sold_orders.html', 
+    return render_template('sold_orders.html',
                            orders=orders_list,
                            summary={
                                'total_invested': total_invested,
@@ -1360,28 +1396,13 @@ def watchlist():
             # 1. Get unique SC_CODEs from the user's orders
             unique_sc_codes = {order['sc_code'] for order in watch_list}
 
-            # 2. Check TinyDB and generate missing scores
-            for sc in unique_sc_codes:
-                record = tdb.get(ScoreQuery.sc_code == sc)
-
-                if not record:
-                    # Call function for missing records
-                    new_score, fundamentals_dict = create_score(sc)
-
-                    # Sanitize and store in TinyDB
-                    # (Assuming json_safe is the helper we discussed earlier)
-                    tdb.insert({
-                        'sc_code': sc,
-                        'score': float(new_score),
-                        'data': json_safe(fundamentals_dict),
-                        'last_updated': datetime.now().isoformat()
-                    })
-
-            # 3. Update orders_list with actual scores from TinyDB
-            # We perform a second pass to map scores to the display list
+            # 2. Update watch_list with actual scores from TinyDB
             for order in watch_list:
                 record = tdb.get(ScoreQuery.sc_code == order['sc_code'])
-                order['score'] = round(record['score'] if record else 0.0,2)
+                if record:
+                    order['score'] = round(record['score'], 2)
+                else:
+                    order['score'] = 'Pending'
         # --- TINYDB SCORE LOGIC END ---
 
     # Calculate Portfolio Summary
@@ -1391,10 +1412,31 @@ def watchlist():
     stock_conn = get_stock_db_connection()
     if orders and stock_conn:
         try:
+            # OPTIMIZED: Fetch all needed stocks in one single query
+            unique_sc_codes = list(set(order['sc_code'] for order in orders))
+            if not unique_sc_codes:
+                raise Exception("No unique sc_codes found")
+
+            placeholders = ','.join(['?'] * len(unique_sc_codes))
+            min_date = min(order['order_date'] for order in orders)
+
+            query = f'SELECT "SCRIP CODE" as sc_code, Close, Date FROM stocks WHERE "SCRIP CODE" IN ({placeholders}) AND Date >= ? ORDER BY Date ASC'
+
+            params = unique_sc_codes + [min_date]
+            all_stock_data = stock_conn.execute(query, params).fetchall()
+
+            # Group by SC_CODE
+            grouped_data = {}
+            for row in all_stock_data:
+                sc = str(row['sc_code'])
+                if sc not in grouped_data:
+                    grouped_data[sc] = []
+                grouped_data[sc].append(row)
+
             for order in orders:
                 try:
-                    query = 'SELECT Close, Date FROM stocks WHERE "SCRIP CODE" = ? ORDER BY Date ASC'
-                    stock_data = stock_conn.execute(query, (order['sc_code'],)).fetchall()
+                    sc_code_str = str(order['sc_code'])
+                    stock_data = grouped_data.get(sc_code_str, [])
 
                     if stock_data:
                         purchase_price = 0.0
@@ -1523,7 +1565,7 @@ def watchlist_chart_data(order_id):
                             unit_current_price = float(rows[-1]['CLOSE'])
 
                             pct_change = ((
-                                                      unit_current_price - unit_purchase_price) / unit_purchase_price) * 100 if unit_purchase_price != 0 else 0
+                                                  unit_current_price - unit_purchase_price) / unit_purchase_price) * 100 if unit_purchase_price != 0 else 0
 
                             data["stats"] = {
                                 "purchase_price": unit_purchase_price * quantity,
@@ -1622,11 +1664,11 @@ def health():
             rs = gain / loss
             rsi = 100 - (100 / (1 + rs)).iloc[-1]
             print(f'Length of stock {len(stock_df)}')
-            if len(stock_df) >=90:
+            if len(stock_df) >= 90:
                 old_st_price = stock_df.iloc[-90]['CLOSE']
-            elif len(stock_df) >=60:
+            elif len(stock_df) >= 60:
                 old_st_price = stock_df.iloc[-60]['CLOSE']
-            elif len(stock_df) >=30:
+            elif len(stock_df) >= 30:
                 old_st_price = stock_df.iloc[-30]['CLOSE']
             else:
                 old_st_price = 1000
@@ -1637,7 +1679,7 @@ def health():
                 "price": round(stock_df.iloc[-1]['CLOSE'], 2),
                 "rsi": round(rsi, 2),
                 "trend_90": "up" if last_price > old_st_price else "down",
-                #"trend_90": "up"
+                # "trend_90": "up"
 
             })
 
@@ -1645,6 +1687,30 @@ def health():
         conn.close()
 
     return render_template('health.html', holdings=holdings_data)
+
+
+@app.route('/api/get_score/<sc_code>')
+@login_required
+def api_get_score(sc_code):
+    record = tdb.get(ScoreQuery.sc_code == sc_code)
+    if record:
+        return jsonify({'sc_code': sc_code, 'score': round(record['score'], 2), 'status': 'cached'})
+
+    # Missing, calculate it
+    try:
+        new_score, fundamentals_dict = create_score(sc_code)
+        score_val = round(float(new_score), 2)
+        tdb.insert({
+            'sc_code': sc_code,
+            'score': score_val,
+            'data': json_safe(fundamentals_dict),
+            'last_updated': datetime.now().isoformat()
+        })
+        return jsonify({'sc_code': sc_code, 'score': score_val, 'status': 'calculated'})
+    except Exception as e:
+        print(f"Error generating score for {sc_code}: {e}")
+        return jsonify({'sc_code': sc_code, 'error': str(e)}), 500
+
 
 @app.route('/api/search_stocks')
 @login_required
@@ -1726,6 +1792,7 @@ def _get_all_sectors_data(start_date):
     data = yf.download(tickers, start=start_date, group_by='ticker', auto_adjust=True)
     return data
 
+
 @lru_cache(maxsize=5)
 def _get_all_index_data(start_date):
     tickers = list(INDICES_MAP.values())
@@ -1779,7 +1846,6 @@ def all_sectors_history():
                 start_price = aligned_series.iloc[-2]
                 current_pct_change = ((aligned_series.iloc[-1] - start_price) / start_price) * 100
                 INDICES_Performance[name] = current_pct_change
-
 
                 datasets.append({
                     "label": name,
@@ -1861,5 +1927,3 @@ def stock_history(sc_code):
 
 if __name__ == '__main__':
     app.run(debug=True)
-
-
