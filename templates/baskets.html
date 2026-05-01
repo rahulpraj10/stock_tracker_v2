@@ -50,9 +50,22 @@
     .bg-oversold { background: #7c3aed; color: white; } /* RSI < 30 */
     .bg-overbought { background: #ef4444; color: white; } /* RSI > 70 */
     
-    .trend-tag { font-size: 11px; padding: 2px 4px; border-radius: 3px; background: #374151; color: #9ca3af; margin-right: 2px; }
-    .trend-up { color: #10b981; }
-    .trend-down { color: #ef4444; }
+    .trend-tag {
+        font-size: 10px;
+        padding: 2px 6px;
+        border-radius: 4px;
+        background: #1f2937; /* Dark background for contrast */
+        color: #9ca3af;
+        margin-right: 4px;
+        display: inline-block;
+        min-width: 18px;
+        text-align: center;
+    }
+
+    /* These classes must match the strings returned by your python dict exactly */
+    .trend-up { color: #10b981 !important; border: 1px solid #10b98133; }
+    .trend-down { color: #ef4444 !important; border: 1px solid #ef444433; }
+    .trend-neutral { color: #9ca3af; }
 
     .chart-icon-btn {
         background: none; border: 1px solid var(--border-color);
@@ -101,10 +114,18 @@
                             </span>
                         </td>
                         <td>
-                            <span class="trend-tag trend-{{ stock.trends['5d'] }}">▲</span>
-                            <span class="trend-tag trend-{{ stock.trends['15d'] }}">▲</span>
-                            <span class="trend-tag trend-{{ stock.trends['30d'] }}">▲</span>
-                            <span class="trend-tag trend-{{ stock.trends['90d'] }}">▲</span>
+                            {% for period in ['5d', '15d', '30d', '90d'] %}
+                                {% set val = stock.trends[period] %}
+
+                                {# Determine class and arrow based on numeric value #}
+                                {% if val == "-" or val == 0 %}
+                                    <span class="trend-tag trend-neutral" title="{{ period }}: 0%">▬</span>
+                                {% elif val > 0 %}
+                                    <span class="trend-tag trend-up" title="{{ period }}: {{ val }}%">▲</span>
+                                {% else %}
+                                    <span class="trend-tag trend-down" title="{{ period }}: {{ val }}%">▼</span>
+                                {% endif %}
+                            {% endfor %}
                         </td>
                         <td>
                             <button class="chart-icon-btn"
