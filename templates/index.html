@@ -173,14 +173,14 @@
 
 
 <script>
-    let sectorChartInstance = null;
+    var sectorChartInstance = null;
 
-    document.addEventListener('DOMContentLoaded', function () {
+    (function initIndexSelection() {
         const firstBtn = document.querySelector('.index-btn');
         if (firstBtn) {
             firstBtn.click();
         }
-    });
+    })();
 
     // AJAX Pagination and Filtering
     document.addEventListener('click', function (e) {
