@@ -28,6 +28,7 @@
             --table-border: #d1d5db;
             --input-bg: #ffffff;
             --li-bg: white;
+            --tr-bg: #f9fafb;
         }
 
         :root[data-theme="dark"] {
@@ -40,6 +41,7 @@
             --table-border: #334155;
             --input-bg: #0f172a;
             --li-bg: #0f172a;
+            --tr-bg: #0f172a;
         }
 
         body, .card, header, table, th, td, input, select {
@@ -268,7 +270,7 @@
 
         .btn-outline:hover {
             border-color: var(--text-secondary);
-            background-color: #f9fafb;
+            background-color: var(--tr-bg);
         }
 
         .btn:disabled {
@@ -327,7 +329,7 @@
         }
 
         tr:hover td {
-            background-color: #f9fafb;
+            background-color: var(--tr-bg);
         }
 
         /* Pagination */
