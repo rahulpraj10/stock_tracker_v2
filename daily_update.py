@@ -219,32 +219,23 @@ def merge_and_accumulate(bse_file_name, samco_files, current_date):
     # Add Date column for tracking over accumulation
     filtered_df['Date'] = current_date.strftime("%Y-%m-%d")
 
-    # Accumulate
-    # We use CSV for robust storage and easier debugging (text-based diffs in git)
-    csv_path = os.path.join(STOCK_DATA_DIR, "merged_stock_data.csv")
-    pkl_path = os.path.join(STOCK_DATA_DIR, PKL_FILENAME)
-
-    final_df = None
-
-    # Try loading from CSV first (Primary persistence)
-    if os.path.exists(csv_path):
-        print(f"Loading existing CSV: {csv_path}")
+    # Accumulate using SQLite Database
+    print("Loading existing data from SQLite database...")
+    existing_df = None
+    conn = get_stock_db_connection()
+    if conn:
         try:
-            existing_df = pd.read_csv(csv_path)
-            # Ensure 'SCRIP CODE' is numeric in existing data too
-            if 'SCRIP CODE' in existing_df.columns:
-                existing_df['SCRIP CODE'] = pd.to_numeric(existing_df['SCRIP CODE'], errors='coerce')
+            # Check if 'stocks' table exists
+            cursor = conn.cursor()
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='stocks'")
+            if cursor.fetchone():
+                existing_df = pd.read_sql_query("SELECT * FROM stocks", conn)
+                # Ensure 'SCRIP CODE' is numeric in existing data too
+                if 'SCRIP CODE' in existing_df.columns:
+                    existing_df['SCRIP CODE'] = pd.to_numeric(existing_df['SCRIP CODE'], errors='coerce')
+            conn.close()
         except Exception as e:
-            print(f"Error reading CSV, trying PKL fallback: {e}")
-            existing_df = None
-
-    # Fallback to PKL if CSV didn't work (Migration or legacy)
-    elif os.path.exists(pkl_path):
-        print(f"Loading existing PKL (Legacy): {pkl_path}")
-        try:
-            existing_df = pd.read_pickle(pkl_path)
-        except Exception as e:
-            print(f"Error reading existing PKL: {e}")
+            print(f"Error reading from SQLite: {e}")
             existing_df = None
     else:
         existing_df = None
@@ -261,30 +252,23 @@ def merge_and_accumulate(bse_file_name, samco_files, current_date):
     # Sort by Date and SCRIP CODE to ensure chronological order
     final_df.sort_values(by=['Date', 'SCRIP CODE'], inplace=True)
 
-    # Save to BOTH CSV and PKL
-    print(f"Saving accumulated data to CSV: {csv_path}")
-    final_df.to_csv(csv_path, index=False)
-
-    print(f"Saving accumulated data to PKL: {pkl_path}")
-    final_df.to_pickle(pkl_path)
-
     # Save to SQLite Database
-    import sqlite3
-    db_path = os.path.join(STOCK_DATA_DIR, "stock_data.db")
-    print(f"Saving accumulated data to SQLite: {db_path}")
-    try:
-        conn = sqlite3.connect(db_path)
-        # Store Date as string (YYYY-MM-DD) for SQLite compatibility
-        # Create a copy to not affect final_df if used later (though it's the end of func)
-        db_df = final_df.copy()
-        if 'Date' in db_df.columns:
-            db_df['Date'] = pd.to_datetime(db_df['Date']).dt.date
+    print("Saving accumulated data to SQLite database...")
+    conn = get_stock_db_connection()
+    if conn:
+        try:
+            # Store Date as string (YYYY-MM-DD) for SQLite compatibility
+            db_df = final_df.copy()
+            if 'Date' in db_df.columns:
+                db_df['Date'] = pd.to_datetime(db_df['Date']).dt.date
 
-        db_df.to_sql('stocks', conn, if_exists='replace', index=False)
-        conn.close()
-        print("SQLite update successful.")
-    except Exception as e:
-        print(f"Error saving to SQLite: {e}")
+            db_df.to_sql('stocks', conn, if_exists='replace', index=False)
+            conn.close()
+            print("SQLite update successful.")
+        except Exception as e:
+            print(f"Error saving to SQLite: {e}")
+    else:
+        print("Error: Could not connect to SQLite database for saving.")
 
     print("\n--- Accumulation File Preview (First 5 Rows) ---")
     print(final_df.head().to_string())
@@ -302,30 +286,23 @@ def prune_data(days_to_remove=1):
     if days_to_remove <= 0:
         return
 
-    csv_path = os.path.join(STOCK_DATA_DIR, "merged_stock_data.csv")
-    pkl_path = os.path.join(STOCK_DATA_DIR, PKL_FILENAME)
-    db_path = os.path.join(STOCK_DATA_DIR, "stock_data.db")
-
-    df = None
-
-    # Load existing data (Prefer CSV)
-    if os.path.exists(csv_path):
+    # Load existing data from SQLite
+    conn = get_stock_db_connection()
+    if conn:
         try:
-            df = pd.read_csv(csv_path)
+            df = pd.read_sql_query("SELECT * FROM stocks", conn)
             # Ensure 'SCRIP CODE' is numeric
             if 'SCRIP CODE' in df.columns:
                 df['SCRIP CODE'] = pd.to_numeric(df['SCRIP CODE'], errors='coerce')
+            conn.close()
         except Exception as e:
-            print(f"Error reading CSV for pruning: {e}")
-
-    if df is None and os.path.exists(pkl_path):
-        try:
-            df = pd.read_pickle(pkl_path)
-        except Exception as e:
-            print(f"Error reading PKL for pruning: {e}")
+            print(f"Error reading from SQLite for pruning: {e}")
+            df = None
+    else:
+        df = None
 
     if df is None or df.empty:
-        print("No data found to prune.")
+        print("No data found in SQLite to prune.")
         return
 
     # Handle Date column types
@@ -355,27 +332,20 @@ def prune_data(days_to_remove=1):
 
     print(f"Removed {original_count - new_count} rows. Remaining rows: {new_count}")
 
-    # Save updates
-    # 1. CSV
-    df_pruned.to_csv(csv_path, index=False)
-    print(f"Updated CSV: {csv_path}")
-
-    # 2. PKL
-    df_pruned.to_pickle(pkl_path)
-    print(f"Updated PKL: {pkl_path}")
-
-    # 3. SQLite
-    import sqlite3
-    try:
-        conn = sqlite3.connect(db_path)
-        db_df = df_pruned.copy()
-        if 'Date' in db_df.columns:
-            db_df['Date'] = db_df['Date'].dt.date
-        db_df.to_sql('stocks', conn, if_exists='replace', index=False)
-        conn.close()
-        print(f"Updated SQLite DB: {db_path}")
-    except Exception as e:
-        print(f"Error updating SQLite DB during pruning: {e}")
+    # Save updates to SQLite
+    conn = get_stock_db_connection()
+    if conn:
+        try:
+            db_df = df_pruned.copy()
+            if 'Date' in db_df.columns:
+                db_df['Date'] = db_df['Date'].dt.date
+            db_df.to_sql('stocks', conn, if_exists='replace', index=False)
+            conn.close()
+            print("Updated SQLite DB successfully.")
+        except Exception as e:
+            print(f"Error updating SQLite DB during pruning: {e}")
+    else:
+        print("Error: Could not connect to SQLite database for saving pruned data.")
 
 
 def create_basket_data():
