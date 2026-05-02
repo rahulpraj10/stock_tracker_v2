@@ -219,56 +219,39 @@ def merge_and_accumulate(bse_file_name, samco_files, current_date):
     # Add Date column for tracking over accumulation
     filtered_df['Date'] = current_date.strftime("%Y-%m-%d")
 
-    # Accumulate using SQLite Database
-    print("Loading existing data from SQLite database...")
-    existing_df = None
+    # Update SQLite Database (Optimized: Append only)
+    print("Updating SQLite database (Append-only optimized)...")
     conn = get_stock_db_connection()
     if conn:
         try:
-            # Check if 'stocks' table exists
+            # 1. Prepare data for insertion
+            db_df = filtered_df.copy()
+            date_str = current_date.strftime("%Y-%m-%d")
+            if 'Date' in db_df.columns:
+                # Ensure Date is in YYYY-MM-DD format for consistency
+                db_df['Date'] = pd.to_datetime(db_df['Date']).dt.strftime('%Y-%m-%d')
+
+            # 2. Delete existing data for the same date (to prevent duplicates if rerun)
             cursor = conn.cursor()
+            # Check if table exists
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='stocks'")
             if cursor.fetchone():
-                existing_df = pd.read_sql_query("SELECT * FROM stocks", conn)
-                # Ensure 'SCRIP CODE' is numeric in existing data too
-                if 'SCRIP CODE' in existing_df.columns:
-                    existing_df['SCRIP CODE'] = pd.to_numeric(existing_df['SCRIP CODE'], errors='coerce')
-            conn.close()
-        except Exception as e:
-            print(f"Error reading from SQLite: {e}")
-            existing_df = None
-    else:
-        existing_df = None
+                cursor.execute("DELETE FROM stocks WHERE Date = ?", (date_str,))
+                print(f"Cleared existing data for {date_str} (if any).")
 
-    if existing_df is not None:
-        print("Appending new data to existing history...")
-        final_df = pd.concat([existing_df, filtered_df], ignore_index=True)
-        # Remove duplicates
-        final_df.drop_duplicates(subset=['SCRIP CODE', 'Date'], keep='last', inplace=True)
-    else:
-        print("Starting fresh accumulation file.")
-        final_df = filtered_df
-
-    # Sort by Date and SCRIP CODE to ensure chronological order
-    final_df.sort_values(by=['Date', 'SCRIP CODE'], inplace=True)
-
-    # Save to SQLite Database
-    print("Saving accumulated data to SQLite database...")
-    conn = get_stock_db_connection()
-    if conn:
-        try:
-            # Store Date as string (YYYY-MM-DD) for SQLite compatibility
-            db_df = final_df.copy()
-            if 'Date' in db_df.columns:
-                db_df['Date'] = pd.to_datetime(db_df['Date']).dt.date
-
-            db_df.to_sql('stocks', conn, if_exists='replace', index=False)
+            # 3. Append new data
+            db_df.to_sql('stocks', conn, if_exists='append', index=False)
+            conn.commit()
             conn.close()
             print("SQLite update successful.")
+
+            final_df = db_df # For the preview below
         except Exception as e:
-            print(f"Error saving to SQLite: {e}")
+            print(f"Error updating SQLite: {e}")
+            final_df = filtered_df
     else:
         print("Error: Could not connect to SQLite database for saving.")
+        final_df = filtered_df
 
     print("\n--- Accumulation File Preview (First 5 Rows) ---")
     print(final_df.head().to_string())
@@ -286,66 +269,39 @@ def prune_data(days_to_remove=1):
     if days_to_remove <= 0:
         return
 
-    # Load existing data from SQLite
+    # Optimized Pruning logic
     conn = get_stock_db_connection()
     if conn:
         try:
-            df = pd.read_sql_query("SELECT * FROM stocks", conn)
-            # Ensure 'SCRIP CODE' is numeric
-            if 'SCRIP CODE' in df.columns:
-                df['SCRIP CODE'] = pd.to_numeric(df['SCRIP CODE'], errors='coerce')
+            cursor = conn.cursor()
+            # 1. Get unique dates
+            cursor.execute("SELECT DISTINCT Date FROM stocks ORDER BY Date ASC")
+            unique_dates_rows = cursor.fetchall()
+            unique_dates = [row[0] for row in unique_dates_rows]
+
+            if not unique_dates:
+                print("No data found in SQLite to prune.")
+                conn.close()
+                return
+
+            if len(unique_dates) <= days_to_remove:
+                print(f"Cannot prune {days_to_remove} days. Only {len(unique_dates)} days of data exist.")
+                conn.close()
+                return
+
+            dates_to_remove = unique_dates[:days_to_remove]
+            print(f"Pruning data for dates: {dates_to_remove}")
+
+            # 2. Delete rows
+            placeholders = ','.join(['?'] * len(dates_to_remove))
+            cursor.execute(f"DELETE FROM stocks WHERE Date IN ({placeholders})", dates_to_remove)
+            conn.commit()
             conn.close()
+            print("Pruning successful.")
         except Exception as e:
-            print(f"Error reading from SQLite for pruning: {e}")
-            df = None
+            print(f"Error pruning from SQLite: {e}")
     else:
-        df = None
-
-    if df is None or df.empty:
-        print("No data found in SQLite to prune.")
-        return
-
-    # Handle Date column types
-    if 'Date' in df.columns:
-        # Convert to datetime for sorting
-        df['Date'] = pd.to_datetime(df['Date'])
-    elif 'DATE_GEN' in df.columns:  # Determine if DATE_GEN is the date column
-        df['Date'] = pd.to_datetime(df['DATE_GEN'])  # Use standard name for logic
-    else:
-        print("Date column not found, cannot prune.")
-        return
-
-    # Get unique dates sorted locally
-    unique_dates = sorted(df['Date'].unique())
-
-    if len(unique_dates) <= days_to_remove:
-        print(f"Cannot prune {days_to_remove} days. Only {len(unique_dates)} days of data exist.")
-        return
-
-    dates_to_remove = unique_dates[:days_to_remove]
-    print(f"Pruning data for dates: {[d.strftime('%Y-%m-%d') for d in dates_to_remove]}")
-
-    # Filter out these dates
-    original_count = len(df)
-    df_pruned = df[~df['Date'].isin(dates_to_remove)].copy()
-    new_count = len(df_pruned)
-
-    print(f"Removed {original_count - new_count} rows. Remaining rows: {new_count}")
-
-    # Save updates to SQLite
-    conn = get_stock_db_connection()
-    if conn:
-        try:
-            db_df = df_pruned.copy()
-            if 'Date' in db_df.columns:
-                db_df['Date'] = db_df['Date'].dt.date
-            db_df.to_sql('stocks', conn, if_exists='replace', index=False)
-            conn.close()
-            print("Updated SQLite DB successfully.")
-        except Exception as e:
-            print(f"Error updating SQLite DB during pruning: {e}")
-    else:
-        print("Error: Could not connect to SQLite database for saving pruned data.")
+        print("Error: Could not connect to SQLite database for pruning.")
 
 
 def create_basket_data():
