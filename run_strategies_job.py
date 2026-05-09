@@ -34,6 +34,33 @@ def run_and_store_strategies():
     try:
         cur = conn.cursor()
         
+        # Ensure the table exists
+        print("Ensuring strategy_results table exists...")
+        if is_postgres:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS strategy_results (
+                    id SERIAL PRIMARY KEY,
+                    sc_code VARCHAR(20),
+                    sc_name VARCHAR(255),
+                    strategy_name VARCHAR(50),
+                    run_date VARCHAR(20),
+                    data_json TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+        else:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS strategy_results (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    sc_code TEXT,
+                    sc_name TEXT,
+                    strategy_name TEXT,
+                    run_date TEXT,
+                    data_json TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+        
         for strategy_name, func, kwargs in strategies_to_run:
             print(f"Running {strategy_name}...")
             try:
@@ -80,7 +107,7 @@ def run_and_store_strategies():
         print("Running cleanup for data older than 30 days...")
         try:
             if is_postgres:
-                cur.execute("DELETE FROM strategy_results WHERE run_date < CURRENT_DATE - INTERVAL '30 days'")
+                cur.execute("DELETE FROM strategy_results WHERE run_date < TO_CHAR(CURRENT_DATE - INTERVAL '30 days', 'YYYY-MM-DD')")
             else:
                 cur.execute("DELETE FROM strategy_results WHERE run_date < date('now', '-30 days')")
             print(f"Cleanup complete. Deleted {cur.rowcount} old records.")
