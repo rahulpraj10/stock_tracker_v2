@@ -132,6 +132,18 @@ def init_db():
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 ''')
+                cur.execute('''
+                    CREATE TABLE IF NOT EXISTS strategy_results (
+                        id SERIAL PRIMARY KEY,
+                        sc_code VARCHAR(50) NOT NULL,
+                        sc_name VARCHAR(255) NOT NULL,
+                        strategy_name VARCHAR(100) NOT NULL,
+                        run_date VARCHAR(20) NOT NULL,
+                        data_json TEXT
+                    )
+                ''')
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_strategy_run_date ON strategy_results(run_date);")
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_strategy_name ON strategy_results(strategy_name);")
             else:
                 # SQLite Syntax
                 cur.execute('''
@@ -171,6 +183,18 @@ def init_db():
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 ''')
+                cur.execute('''
+                    CREATE TABLE IF NOT EXISTS strategy_results (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        sc_code VARCHAR(50) NOT NULL,
+                        sc_name VARCHAR(255) NOT NULL,
+                        strategy_name VARCHAR(100) NOT NULL,
+                        run_date VARCHAR(20) NOT NULL,
+                        data_json TEXT
+                    )
+                ''')
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_strategy_run_date ON strategy_results(run_date);")
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_strategy_name ON strategy_results(strategy_name);")
             conn.commit()
             cur.close()
         except Exception as e:
@@ -435,14 +459,7 @@ def index():
 @login_required
 def strategies():
     selected_strategy = request.args.get('strategy')
-
-    # Initialize cache for user if not exists
-    user_id = current_user.id
-    if 'cached_data' not in session:
-        session['cached_data'] = {}
-
-    if user_id not in STRATEGY_CACHE:
-        STRATEGY_CACHE[user_id] = {}
+    run_date_filter = request.args.get('run_date')
 
     # Default parameters for strategies (Base + DB v1)
     params = {
@@ -465,96 +482,84 @@ def strategies():
             except ValueError:
                 pass
 
-    # If a strategy is selected, run it (or check cache)
-    if selected_strategy:
-        # Check if we need to re-run
-        # We re-run if:
-        # 1. Strategy not in cache
-        # 2. Params changed
-        # 3. Explicit 'reload' forced (not implemented yet, but good practice)
+    available_dates = []
+    SCHEDULED_STRATEGIES = ['bullish_reversal', 'multi_frame', 'double_bottom_v1']
+    
+    # We build a fresh cache dict for this request to pass to the template
+    request_cached_data = {}
 
-        cached = STRATEGY_CACHE[user_id].get(selected_strategy)
-        run_new = True
-
-        if cached:
-            # Compare params (exclude 'days' if not relevant to the strategy, but simple comparison is okay)
-            # For strictness, we should compare only relevant params, but comparing all is safer/easier
-            if cached['params'] == params:
-                run_new = False
-
-        if run_new:
-            new_results = []
-            if selected_strategy == 'min_increase':
-                new_results = get_min_increase_stocks(params['days'])
-            elif selected_strategy == 'bullish_reversal':
-                if 'bullish_reversal' not in session['cached_data']:
-                    new_results = get_bullish_reversal_stocks()
-                    temp_cache = session['cached_data']
-                    temp_cache['bullish_reversal'] = {'data': new_results}
-                    session['cached_data'] = temp_cache
-                    session.permanent = False  # Cache expires when browser closes
-                    session.modified = True
-            elif selected_strategy == 'geminis_strategy':
-                if 'geminis_strategy' not in session['cached_data']:
-                    new_results = get_geminis_strategy_stocks()
-                    temp_cache = session['cached_data']
-                    temp_cache['geminis_strategy'] = {'data': new_results}
-                    session['cached_data'] = temp_cache
-                    session.permanent = False  # Cache expires when browser closes
-                    session.modified = True
-            elif selected_strategy == 'multi_frame':
-                if 'multi_frame' not in session['cached_data']:
-                    new_results = get_multi_frame()
-                    temp_cache = session['cached_data']
-                    temp_cache['multi_frame'] = {'data': new_results}
-                    session['cached_data'] = temp_cache
-                    session.permanent = False  # Cache expires when browser closes
-                    session.modified = True
-            elif selected_strategy == 'double_bottom':
-                if 'double_bottom' not in session['cached_data']:
-                    new_results = get_double_bottom_stocks(
-                        min_days=params['min_days'],
-                        max_days=params['max_days'],
-                        tolerance_pct=params['tolerance'],
-                        lookback_days=params['lookback'],
-                        peak_prominence_pct=params['prominence']
-                    )
-                    temp_cache = session['cached_data']
-                    temp_cache['double_bottom'] = {'data': new_results}
-                    session['cached_data'] = temp_cache
-                    session.permanent = False  # Cache expires when browser closes
-                    session.modified = True
-            elif selected_strategy == 'double_bottom_v1':
-                if 'double_bottom_v1' not in session['cached_data']:
-                    df_results = get_double_bottom_v1_stocks(params=params)
-                    if not df_results.empty:
-                        new_results = df_results.to_dict('records')
+    conn = get_orders_db_connection()
+    if conn:
+        try:
+            cur = conn.cursor()
+            is_postgres = 'psycopg2' in str(type(conn))
+            
+            # Fetch data for all scheduled strategies to populate the tabs instantly
+            for strat in SCHEDULED_STRATEGIES:
+                if is_postgres:
+                    cur.execute("SELECT DISTINCT run_date FROM strategy_results WHERE strategy_name = %s ORDER BY run_date DESC", (strat,))
+                else:
+                    cur.execute("SELECT DISTINCT run_date FROM strategy_results WHERE strategy_name = ? ORDER BY run_date DESC", (strat,))
+                
+                strat_dates = [r['run_date'] if isinstance(r, dict) else r[0] for r in cur.fetchall()]
+                
+                if strat == selected_strategy:
+                    available_dates = strat_dates
+                
+                # Determine target date for this strategy
+                target_date = None
+                if strat == selected_strategy and run_date_filter:
+                    target_date = run_date_filter
+                elif strat_dates:
+                    target_date = strat_dates[0]
+                
+                strat_results = []
+                if target_date:
+                    if is_postgres:
+                        cur.execute("SELECT data_json FROM strategy_results WHERE strategy_name = %s AND run_date = %s", (strat, target_date))
                     else:
-                        new_results = []
-                    temp_cache = session['cached_data']
-                    temp_cache['double_bottom_v1'] = {'data': new_results}
-                    session['cached_data'] = temp_cache
-                    session.permanent = False  # Cache expires when browser closes
-                    session.modified = True
+                        cur.execute("SELECT data_json FROM strategy_results WHERE strategy_name = ? AND run_date = ?", (strat, target_date))
+                        
+                    for row in cur.fetchall():
+                        try:
+                            data_val = row['data_json'] if isinstance(row, dict) else row[0]
+                            if isinstance(data_val, str):
+                                strat_results.append(json.loads(data_val))
+                            else:
+                                strat_results.append(data_val)
+                        except:
+                            pass
+                
+                request_cached_data[strat] = {'data': strat_results, 'run_date': target_date}
+                
+        except Exception as e:
+            print(f"Error fetching strategy results: {e}")
+        finally:
+            conn.close()
 
-            # Update Cache
-            STRATEGY_CACHE[user_id][selected_strategy] = {
-                'params': params.copy(),  # Store copy of current params
-                'data': new_results
-            }
-
-    # Prepare data for template
-    # We pass the entire cache for this user so the template can render any tab that has data
-    cached_data = STRATEGY_CACHE[user_id]
-
-    # For backward compatibility with template (which expects 'results' for the selected strategy)
-    current_results = cached_data.get(selected_strategy, {}).get('data', []) if selected_strategy else []
+    # Dynamic Strategies (Run strictly on demand when selected)
+    if selected_strategy and selected_strategy not in SCHEDULED_STRATEGIES:
+        new_results = []
+        if selected_strategy == 'min_increase':
+            new_results = get_min_increase_stocks(params['days'])
+        elif selected_strategy == 'geminis_strategy':
+            new_results = get_geminis_strategy_stocks()
+        elif selected_strategy == 'double_bottom':
+            new_results = get_double_bottom_stocks(
+                min_days=params['min_days'],
+                max_days=params['max_days'],
+                tolerance_pct=params['tolerance'],
+                lookback_days=params['lookback'],
+                peak_prominence_pct=params['prominence']
+            )
+        request_cached_data[selected_strategy] = {'data': new_results}
 
     return render_template('strategies.html',
                            strategy=selected_strategy,
-                           # results=current_results,
-                           cached_data=session.get('cached_data', {}),
-                           params=params)
+                           cached_data=request_cached_data,
+                           params=params,
+                           available_dates=available_dates,
+                           current_run_date=run_date_filter)
 
 
 @app.route('/baskets')

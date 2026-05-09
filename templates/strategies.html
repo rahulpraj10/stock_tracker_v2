@@ -30,12 +30,12 @@
     }
 
     .strategy-tab:hover {
-        background-color: #f3f4f6;
+        background-color: var(--tr-bg);
         color: var(--text-main);
     }
 
     .strategy-tab.active {
-        background-color: white;
+        background-color: var(--card-bg);
         color: var(--primary-color);
         border-color: var(--border-color);
         box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
@@ -303,102 +303,18 @@
             Identify stocks forming a "W" pattern (Version 1 - Optimized).
         </p>
 
-        <form method="GET" action="{{ url_for('strategies') }}" class="filter-form" style="margin-bottom: 24px;">
+        <form method="GET" action="{{ url_for('strategies') }}" class="filter-form" style="margin-bottom: 24px; display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap;">
             <input type="hidden" name="strategy" value="double_bottom_v1">
-            <div
-                style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; width: 100%;">
-
-                <div class="form-group">
-                    <label>Min Data Length</label>
-                    <input type="number" name="min_data" value="{{ params.min_data|default(40) }}" min="20" max="365">
-                </div>
-                <div class="form-group">
-                    <label>Extrema Order</label>
-                    <input type="number" name="extrema_order" value="{{ params.extrema_order|default(5) }}" min="1"
-                        max="20">
-                </div>
-                <div class="form-group">
-                    <label>Min Bottom Gap</label>
-                    <input type="number" name="min_bottom_gap" value="{{ params.min_bottom_gap|default(12) }}" min="1">
-                </div>
-                <div class="form-group">
-                    <label>Pre Drop Lookback</label>
-                    <input type="number" name="pre_drop_lookback" value="{{ params.pre_drop_lookback|default(20) }}"
-                        min="5">
-                </div>
-                <div class="form-group">
-                    <label>Min Pre Days</label>
-                    <input type="number" name="min_pre_days" value="{{ params.min_pre_days|default(5) }}" min="1">
-                </div>
-                <div class="form-group">
-                    <label>Min Prior Drop</label>
-                    <input type="number" name="min_prior_drop" value="{{ params.min_prior_drop|default(0.12) }}"
-                        step="0.01">
-                </div>
-                <div class="form-group">
-                    <label>Reversal Window</label>
-                    <input type="number" name="reversal_window" value="{{ params.reversal_window|default(10) }}"
-                        min="1">
-                </div>
-                <div class="form-group">
-                    <label>Reversal Tolerance</label>
-                    <input type="number" name="reversal_tolerance" value="{{ params.reversal_tolerance|default(0.03) }}"
-                        step="0.01">
-                </div>
-                <div class="form-group">
-                    <label>Max Linger Days</label>
-                    <input type="number" name="max_linger_days" value="{{ params.max_linger_days|default(6) }}" min="1">
-                </div>
-                <div class="form-group">
-                    <label>Min Peak Spacing</label>
-                    <input type="number" name="min_peak_spacing" value="{{ params.min_peak_spacing|default(4) }}"
-                        min="1">
-                </div>
-                <div class="form-group">
-                    <label>Peak Separation</label>
-                    <input type="number" name="peak_separation" value="{{ params.peak_separation|default(3) }}" min="1">
-                </div>
-                <div class="form-group">
-                    <label>Min Peak Drop (Prior)</label>
-                    <input type="number" name="min_peak_drop_from_prior"
-                        value="{{ params.min_peak_drop_from_prior|default(0.05) }}" step="0.01">
-                </div>
-                <div class="form-group">
-                    <label>Bottom Tolerance</label>
-                    <input type="number" name="bottom_tolerance" value="{{ params.bottom_tolerance|default(0.025) }}"
-                        step="0.001">
-                </div>
-                <div class="form-group">
-                    <label>Min Peak Height</label>
-                    <input type="number" name="min_peak_height" value="{{ params.min_peak_height|default(0.06) }}"
-                        step="0.01">
-                </div>
-                <div class="form-group">
-                    <label>No Breakout Tolerance</label>
-                    <input type="number" name="no_breakout_tolerance"
-                        value="{{ params.no_breakout_tolerance|default(0.005) }}" step="0.001">
-                </div>
-                <div class="form-group">
-                    <label>Resistance Buffer</label>
-                    <input type="number" name="resistance_buffer" value="{{ params.resistance_buffer|default(0.015) }}"
-                        step="0.001">
-                </div>
-                <div class="form-group">
-                    <label>Volume Multiplier</label>
-                    <input type="number" name="volume_multiplier" value="{{ params.volume_multiplier|default(1.5) }}"
-                        step="0.1">
-                </div>
-                <div class="form-group">
-                    <label for="db_min_price">Min Price (Close > X)</label>
-                    <input type="number" id="db_min_price" name="min_price" value="{{ request.args.get('min_price', '') }}" step="0.01" placeholder="e.g. 100">
+            <div class="form-group">
+                <label for="db_run_date">Run Date</label>
+                <input type="date" id="db_run_date" name="run_date" value="{{ cached_data.get('double_bottom_v1').run_date if cached_data.get('double_bottom_v1') else '' }}" style="padding: 8px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-main);">
             </div>
-                <div class="form-group" style="display: flex; align-items: flex-end;">
-                    <button type="submit" class="btn btn-primary" style="width: 100%;">Find Patterns</button>
-                    <!-- Add clear button to reset to defaults -->
-                    <a href="{{ url_for('strategies', strategy='double_bottom_v1') }}" class="btn "
-                        style="margin-left: 8px; width: 100%; border: 1px solid var(--border-color); text-align: center; color: var(--text-main); background: #f9fafb; text-decoration: none; display: inline-block; padding: 10px 16px; border-radius: 6px; font-weight: 500;">Reset
-                        Defaults</a>
-                </div>
+            <div class="form-group">
+                <label for="db_min_price">Min Price (Close > X)</label>
+                <input type="number" id="db_min_price" name="min_price" value="{{ request.args.get('min_price', '') }}" step="0.01" placeholder="e.g. 100" style="padding: 8px; border-radius: 6px; border: 1px solid var(--border-color);">
+            </div>
+            <div class="form-group">
+                <button type="submit" class="btn btn-primary">Apply Filters</button>
             </div>
         </form>
 
@@ -464,15 +380,19 @@
         <strong>Criteria:</strong> Price Increase today, 3-day decline prior, Volume > 5-day Avg, Delivery > 50%.
     </p>
 
-    <form method="GET" action="{{ url_for('strategies') }}" class="filter-form" style="margin-bottom: 24px; display: flex; gap: 16px; align-items: flex-end;">
+    <form method="GET" action="{{ url_for('strategies') }}" class="filter-form" style="margin-bottom: 24px; display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap;">
         <input type="hidden" name="strategy" value="bullish_reversal">
-
         <div class="form-group">
-            <label for="min_price">Minimum Price (Close > X)</label>
-            <input type="number" id="min_price" name="min_price" value="{{ request.args.get('min_price', '') }}" step="0.01" placeholder="e.g. 100" style="padding: 8px; border-radius: 6px; border: 1px solid var(--border-color);">
+            <label for="br_run_date">Run Date</label>
+            <input type="date" id="br_run_date" name="run_date" value="{{ cached_data.get('bullish_reversal').run_date if cached_data.get('bullish_reversal') else '' }}" style="padding: 8px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-main);">
         </div>
-
-        <button type="submit" class="btn btn-primary">Find Reversal Stocks</button>
+        <div class="form-group">
+            <label for="br_min_price">Min Price (Close > X)</label>
+            <input type="number" id="br_min_price" name="min_price" value="{{ request.args.get('min_price', '') }}" step="0.01" placeholder="e.g. 100" style="padding: 8px; border-radius: 6px; border: 1px solid var(--border-color);">
+        </div>
+        <div class="form-group">
+            <button type="submit" class="btn btn-primary">Apply Filters</button>
+        </div>
     </form>
 
     {% set reversal_cache = cached_data.get('bullish_reversal') %}
@@ -497,7 +417,7 @@
                     {# Filter logic: Only show rows where Close price is >= the input min_price #}
                     {% set min_p = request.args.get('min_price', '0') | float %}
                     {% if stock.Close | float >= min_p %}
-                    <tr class="clickable-row" onclick='openChartModal("{{ stock.SC_CODE }}", "{{ stock.SC_NAME }}", "Bullish Reversal")'>
+                    <tr class="clickable-row" onclick='openChartModal(this, "{{ stock.SC_CODE }}", "{{ stock.SC_NAME }}", "Bullish Reversal")'>
                         <td>{{ stock.SC_CODE }}</td>
                         <td>{{ stock.SC_NAME }}</td>
                         <td>{{ stock.Date }}</td>
@@ -523,13 +443,19 @@
         Identify stocks showing consistent growth across multiple timeframes (Short, Medium, and Long term).
     </p>
 
-    <form method="GET" action="{{ url_for('strategies') }}" style="margin-bottom: 24px;">
+    <form method="GET" action="{{ url_for('strategies') }}" class="filter-form" style="margin-bottom: 24px; display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap;">
         <input type="hidden" name="strategy" value="multi_frame">
+        <div class="form-group">
+            <label for="mf_run_date">Run Date</label>
+            <input type="date" id="mf_run_date" name="run_date" value="{{ cached_data.get('multi_frame').run_date if cached_data.get('multi_frame') else '' }}" style="padding: 8px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-main);">
+        </div>
         <div class="form-group">
             <label for="mf_min_price">Minimum Price (Close > X)</label>
             <input type="number" id="mf_min_price" name="min_price" value="{{ request.args.get('min_price', '') }}" step="0.01" placeholder="e.g. 100" style="padding: 8px; border-radius: 6px; border: 1px solid var(--border-color);">
         </div>
-        <button type="submit" class="btn btn-primary">Find Growing Stocks</button>
+        <div class="form-group">
+            <button type="submit" class="btn btn-primary">Apply Filters</button>
+        </div>
     </form>
 
     {% set multi_cache = cached_data.get('multi_frame') %}
@@ -554,7 +480,7 @@
                     {# Filter logic: Only show rows where Close price is >= the input min_price #}
                     {% set min_p = request.args.get('min_price', '0') | float %}
                     {% if stock.Close | float >= min_p %}
-                    <tr class="clickable-row" onclick='openChartModal("{{ stock.SC_CODE }}", "{{ stock.SC_NAME }}", "Multiple Frame Growing")'>
+                    <tr class="clickable-row" onclick='openChartModal(this, "{{ stock.SC_CODE }}", "{{ stock.SC_NAME }}", "Multiple Frame Growing")'>
                         <td>{{ stock.SC_CODE }}</td>
                         <td>{{ stock.SC_NAME }}</td>
                         <td>{{ stock.latest_price }}</td>
@@ -617,7 +543,7 @@
                 </thead>
                 <tbody>
                     {% for stock in min_inc_cache.data %}
-                    <tr class="clickable-row" onclick='openChartModal("{{ stock.SC_CODE }}", "{{ stock.SC_NAME }}", "Minimum N Day Increase")'>
+                    <tr class="clickable-row" onclick='openChartModal(this, "{{ stock.SC_CODE }}", "{{ stock.SC_NAME }}", "Minimum N Day Increase")'>
                         <td>{{ stock.SC_CODE }}</td>
                         <td>{{ stock.SC_NAME }}</td>
                         <td style="font-family: monospace;">{{ stock.Volumes | join(' &rarr; ') }}</td>
@@ -682,7 +608,7 @@
                         {# Filter logic: Only show rows where Close price is >= the input min_price #}
                         {% set min_p = request.args.get('min_price', '0') | float %}
                         {% if stock.Close | float >= min_p %}
-                        <tr class="clickable-row" onclick='openChartModal("{{ stock.SC_CODE }}", "{{ stock.SC_NAME }}", "Geminis Strategy")'>
+                        <tr class="clickable-row" onclick='openChartModal(this, "{{ stock.SC_CODE }}", "{{ stock.SC_NAME }}", "Geminis Strategy")'>
                             <td>{{ stock.SC_CODE }}</td>
                             <td>{{ stock.SC_NAME }}</td>
                             <td>{{ stock.Date }}</td>
@@ -729,6 +655,10 @@
         </div>
         <div class="chart-container">
             <canvas id="stockChart"></canvas>
+        </div>
+        <div class="modal-footer" style="display: flex; justify-content: space-between; margin-top: 20px;">
+            <button id="prevChartBtn" class="btn btn-outline" style="height: 36px; padding: 0 20px; font-size: 14px; border-radius: 6px; display: flex; align-items: center; gap: 8px;" onclick="navigateChart('prev')">&larr; Previous</button>
+            <button id="nextChartBtn" class="btn btn-outline" style="height: 36px; padding: 0 20px; font-size: 14px; border-radius: 6px; display: flex; align-items: center; gap: 8px;" onclick="navigateChart('next')">Next &rarr;</button>
         </div>
     </div>
 </div>
@@ -787,9 +717,49 @@
     // --- Charting Logic ---
     let stockChartInstance = null;
     let currentModalStock = { code: null, name: null, strategy: null };
+    let currentRowElement = null;
 
-    function openChartModal(scCode, scName, strategyName) {
+    function getVisibleSibling(row, direction) {
+        let sibling = direction === 'next' ? row.nextElementSibling : row.previousElementSibling;
+        while (sibling) {
+            if (sibling.classList.contains('clickable-row') && sibling.style.display !== 'none') {
+                return sibling;
+            }
+            sibling = direction === 'next' ? sibling.nextElementSibling : sibling.previousElementSibling;
+        }
+        return null;
+    }
+
+    function updateNavButtons() {
+        if (!currentRowElement) return;
+        const prevBtn = document.getElementById('prevChartBtn');
+        const nextBtn = document.getElementById('nextChartBtn');
+        
+        const hasPrev = !!getVisibleSibling(currentRowElement, 'prev');
+        const hasNext = !!getVisibleSibling(currentRowElement, 'next');
+        
+        prevBtn.disabled = !hasPrev;
+        prevBtn.style.opacity = hasPrev ? "1" : "0.5";
+        prevBtn.style.cursor = hasPrev ? "pointer" : "not-allowed";
+        
+        nextBtn.disabled = !hasNext;
+        nextBtn.style.opacity = hasNext ? "1" : "0.5";
+        nextBtn.style.cursor = hasNext ? "pointer" : "not-allowed";
+    }
+
+    function navigateChart(direction) {
+        if (!currentRowElement) return;
+        const targetRow = getVisibleSibling(currentRowElement, direction);
+        if (targetRow) {
+            targetRow.click();
+        }
+    }
+
+    function openChartModal(rowElement, scCode, scName, strategyName) {
+        currentRowElement = rowElement;
         currentModalStock = { code: scCode, name: scName, strategy: strategyName || '' };
+        updateNavButtons();
+        
         const modal = document.getElementById('chartModal');
         const title = document.getElementById('chartModalTitle');
         const ctx = document.getElementById('stockChart').getContext('2d');
