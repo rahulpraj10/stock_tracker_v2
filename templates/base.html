@@ -448,6 +448,18 @@
                     </svg>
                     <span class="nav-text">Baskets</span>
                 </a>
+                <a href="{{ url_for('mf_holdings') }}"
+                    class="nav-link {% if request.path == '/mf_holdings' %}active{% endif %}" title="MF Holdings">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                        class="nav-icon" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect width="16" height="10" x="2" y="6" rx="2"></rect>
+                        <path d="M12 12h.01"></path>
+                        <path d="M17 20h2a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-2"></path>
+                        <path d="M7 20H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2"></path>
+                        <path d="M12 20V12"></path>
+                    </svg>
+                    <span class="nav-text">MF Holdings</span>
+                </a>
                 <a href="{{ url_for('paper_trading') }}"
                     class="nav-link {% if request.path == '/paper_trading' %}active{% endif %}" title="Paper Trading">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
