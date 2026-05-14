@@ -678,6 +678,16 @@ def mf_holdings():
                            analysis_data=analysis_data,
                            current_month_name=current_month_name)
 
+
+@app.route('/api/mf_holdings/<sc_code>')
+def get_mf_stock_details(sc_code):
+    # Load your detail file (replace with your actual loading logic)
+    with open('./StockData/mf_stock_details.pkl', 'rb') as f:
+        details = pickle.load(f)
+
+    stock_funds = details.get(str(sc_code), [])
+    return jsonify(stock_funds)
+
 @app.route('/paper_trading', methods=['GET', 'POST'])
 @login_required
 def paper_trading():

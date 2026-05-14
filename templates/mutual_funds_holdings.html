@@ -56,6 +56,14 @@
         color: var(--primary-color); padding: 6px; border-radius: 4px; cursor: pointer;
     }
     .chart-icon-btn:hover { background: var(--primary-color); color: white; }
+    th:hover {
+        background-color: var(--border-color) !important;
+        color: var(--primary-color) !important;
+    }
+
+    /* Optional: add an indicator that a column is sorted */
+    .sorted-asc::after { content: " ↑"; }
+    .sorted-desc::after { content: " ↓"; }
 </style>
 
 <div class="header-area" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
@@ -73,13 +81,13 @@
         <table>
             <thead>
                 <tr>
-                    <th>Stock Name</th>
-                    <th>Total MFs</th>
-                    <th style="text-align: center;">Added</th>
-                    <th style="text-align: center;">Removed</th>
-                    <th style="text-align: center;">Increased</th>
-                    <th style="text-align: center;">Decreased</th>
-                    <th style="text-align: center;">No Change</th>
+                    <th onclick="sortTable(0)" style="cursor:pointer">Stock Name ↕</th>
+                    <th onclick="sortTable(1)" style="cursor:pointer">Total MFs ↕</th>
+                    <th onclick="sortTable(2)" style="cursor:pointer; text-align: center;">Added ↕</th>
+                    <th onclick="sortTable(3)" style="cursor:pointer; text-align: center;">Removed ↕</th>
+                    <th onclick="sortTable(4)" style="cursor:pointer; text-align: center;">Increased ↕</th>
+                    <th onclick="sortTable(5)" style="cursor:pointer; text-align: center;">Decreased ↕</th>
+                    <th onclick="sortTable(6)" style="cursor:pointer; text-align: center;">No Change ↕</th>
                     <th>Trends</th>
                     <th>Action</th>
                 </tr>
@@ -87,7 +95,7 @@
             <tbody>
                 {% for row in analysis_data %}
                 <tr>
-                    <td>
+                    <td style="cursor: pointer; color: var(--primary-color);" onclick="openMfDetails('{{ row['SC Code'] }}', '{{ row.stock }}')">
                         <strong>{{ row.stock }}</strong><br>
                         <small style="color: var(--text-secondary)">{{ row['SC Code'] }}</small>
                     </td>
@@ -122,6 +130,30 @@
                 {% endfor %}
             </tbody>
         </table>
+    </div>
+</div>
+
+<div id="mfDetailModal" class="modal" style="display: none; position: fixed; z-index: 1001; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.6); align-items: center; justify-content: center;">
+    <div class="modal-content" style="background-color: var(--card-bg); padding: 24px; border-radius: 12px; width: 90%; max-width: 700px; position: relative;">
+        <span onclick="closeMfModal()" style="position: absolute; right: 20px; top: 15px; font-size: 28px; cursor: pointer;">&times;</span>
+
+        <h3 id="mfModalTitle" style="margin-bottom: 5px;">Stock MF Holdings</h3>
+        <p id="mfModalSubtitle" style="color: var(--text-secondary); margin-bottom: 20px; font-size: 12px;"></p>
+
+        <div class="table-container" style="max-height: 400px; overflow-y: auto; margin-top: 10px;">
+            <table style="min-width: 100%;">
+                <thead>
+                    <tr style="background: var(--bg-color);">
+                        <th>MF Name</th>
+                        <th align="center">AUM %</th>
+                        <th align="center">Rank</th>
+                        <th align="center">3M Change</th>
+                    </tr>
+                </thead>
+                <tbody id="mfDetailBody">
+                    </tbody>
+            </table>
+        </div>
     </div>
 </div>
 
@@ -213,12 +245,105 @@
         document.getElementById('chartModal').style.display = 'none';
     }
 
+    async function openMfDetails(scCode, stockName) {
+        const modal = document.getElementById('mfDetailModal');
+        const body = document.getElementById('mfDetailBody');
+        document.getElementById('mfModalTitle').textContent = stockName;
+        document.getElementById('mfModalSubtitle').textContent = `Mutual Fund Portfolios holding SC: ${scCode}`;
+
+        body.innerHTML = '<tr><td colspan="4" align="center">Loading details...</td></tr>';
+        modal.style.display = 'flex';
+
+        try {
+            const response = await fetch(`/api/mf_holdings/${scCode}`);
+            const funds = await response.json();
+
+            if (funds.length === 0) {
+                body.innerHTML = '<tr><td colspan="4" align="center">No specific fund data available.</td></tr>';
+                return;
+            }
+
+            body.innerHTML = funds.map(f => {
+                // Convert to float to handle negative signs and strings correctly
+                const changeVal = parseFloat(f.change3m);
+
+                // Check if the value is a valid number to prevent "NaN%"
+                const isValid = !isNaN(changeVal);
+
+                // Logic for sign: show '+' only for positive, '-' for negative
+                let sign = '';
+                if (changeVal > 0) sign = '+';
+                else if (changeVal < 0) sign = '-';
+
+                return `
+                <tr>
+                    <td>${f.mf_name}</td>
+                    <td align="center"><strong>${Number(f.aum_pct).toFixed(2)}%</strong></td>
+                    <td align="center">#${f.rank}</td>
+                    <td align="center" class="${changeVal >= 0 ? 'text-added' : 'text-removed'}">
+                        ${isValid ? sign + Math.abs(changeVal).toFixed(2) + '%' : '-'}
+                    </td>
+                </tr>
+                `;
+            }).join('');
+
+        } catch (error) {
+            body.innerHTML = '<tr><td colspan="4" align="center" style="color:red;">Error loading data.</td></tr>';
+        }
+    }
+
+    function closeMfModal() {
+        document.getElementById('mfDetailModal').style.display = 'none';
+    }
+
     // Close modal when clicking outside of it
     window.onclick = function(event) {
         const modal = document.getElementById('chartModal');
         if (event.target == modal) {
             closeChartModal();
         }
+    }
+
+    function sortTable(n) {
+        const table = document.querySelector(".stock-table-container table");
+        const tbody = table.querySelector("tbody");
+        const rows = Array.from(tbody.rows);
+        const header = table.querySelectorAll("th")[n];
+
+        // Toggle sort direction
+        const isAscending = header.dataset.dir !== "asc";
+        header.dataset.dir = isAscending ? "asc" : "desc";
+
+        rows.sort((a, b) => {
+            let xStr = a.cells[n].innerText.trim();
+            let yStr = b.cells[n].innerText.trim();
+
+            // 1. Clean the data and try to parse numbers
+            let xNum = parseFloat(xStr.replace(/[^\d.-]/g, ''));
+            let yNum = parseFloat(yStr.replace(/[^\d.-]/g, ''));
+
+            const xIsNaN = isNaN(xNum);
+            const yIsNaN = isNaN(yNum);
+
+            // 2. "NaNs to the Bottom" Logic
+            // If one is NaN and the other isn't, the NaN one always "loses"
+            // (meaning it goes to the end) regardless of the sort direction.
+            if (xIsNaN && !yIsNaN) return 1;
+            if (!xIsNaN && yIsNaN) return -1;
+            if (xIsNaN && yIsNaN) return 0;
+
+            // 3. Normal Numeric Comparison (if both are valid numbers)
+            if (isAscending) {
+                return xNum - yNum;
+            } else {
+                return yNum - xNum;
+            }
+        });
+
+        // 4. Update DOM once
+        const fragment = document.createDocumentFragment();
+        rows.forEach(row => fragment.appendChild(row));
+        tbody.appendChild(fragment);
     }
 </script>
 
