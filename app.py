@@ -654,6 +654,30 @@ tdb = TinyDB('fundamentals_scores.json')
 ScoreQuery = Query()
 
 
+@app.route('/mf_holdings')
+def mf_holdings():
+    # 'analysis' is the dataframe you computed in the previous steps
+    # Convert it to a list of dictionaries for the template
+
+    try:
+        with open('StockData/mf_enriched_analysis.pkl', 'rb') as file:
+            # Deserialize the object from the file
+            analysis = pickle.load(file)
+    except FileNotFoundError as e:
+        print(e)
+
+    # add trends
+
+    analysis_data = analysis#.to_dict(orient='records')
+
+    # You would also need to pass trend data if stored separately
+    # For now, we pass the current month name for the header
+    current_month_name = pd.to_datetime('today').strftime('%B %Y')
+
+    return render_template('mutual_funds_holdings.html',
+                           analysis_data=analysis_data,
+                           current_month_name=current_month_name)
+
 @app.route('/paper_trading', methods=['GET', 'POST'])
 @login_required
 def paper_trading():

@@ -473,6 +473,114 @@ def create_basket_data():
 
 import argparse
 
+import os
+import json
+import pickle
+import pandas as pd
+import sqlite3
+
+
+def create_mf_holdings_data():
+    print('Running Mutual Fund Holdings data enrichment')
+    # Path for the final enriched data
+    mf_enriched_pkl_path = os.path.join(STOCK_DATA_DIR, "mf_enriched_analysis.pkl")
+
+    # 1. Load your existing analysis dataframe
+    # This is the 'analysis' df created in our previous steps
+    # If you saved it to a file, load it here:
+    # analysis = pd.read_pickle(os.path.join(STOCK_DATA_DIR, "current_month_MF_holdings.pkl"))
+
+    # Get unique SC Codes from the analysis to query DB efficiently
+    print('Running MF analysis')
+    try:
+        with open('StockData/MF_holdings_analysis.pkl', 'rb') as file:
+            # Deserialize the object from the file
+            analysis = pickle.load(file)
+    except FileNotFoundError as e:
+        print(e)
+    all_codes = analysis['SC Code'].unique().tolist()
+    all_codes = [int(c) for c in all_codes if str(c).isdigit()]
+
+    conn = get_stock_db_connection()
+    enriched_results = []
+
+    try:
+        # 2. Query price history for all stocks in the MF analysis
+        placeholders = ','.join(['?'] * len(all_codes))
+        query = f"""
+            SELECT SC_CODE, SC_NAME, CLOSE, Date 
+            FROM stocks 
+            WHERE SC_CODE IN ({placeholders}) 
+            AND Date >= date('now', '-200 days')
+            ORDER BY Date ASC
+        """
+        df_history = pd.read_sql_query(query, conn, params=all_codes)
+
+        # 3. Iterate through each row in your analysis table
+        for _, row in analysis.iterrows():
+            sc_name = 'DEFAULT NAME'
+            sc_code = int(row['SC Code'])
+            stock_df = df_history[df_history['SC_CODE'] == sc_code].copy()
+            # Check if stock_df is empty before trying to access values
+            if not stock_df.empty:
+                # Use .iloc[0] to safely get the first value regardless of the index label
+                sc_name = stock_df['SC_NAME'].iloc[0]
+
+            # Default values if no history found
+            rsi_val = "-"
+            trends = {"5d": 0, "15d": 0, "30d": 0, "90d": 0}
+
+            if not stock_df.empty:
+                current_price = stock_df.iloc[-1]['CLOSE']
+
+                # Calculate RSI
+                delta = stock_df['CLOSE'].diff()
+                gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+                loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+                rs = gain / loss
+                rsi = 100 - (100 / (1 + rs)).iloc[-1]
+                rsi_val = round(rsi, 2) if not pd.isna(rsi) else "-"
+
+                # Trend Helper
+                def get_trend(days):
+                    if len(stock_df) >= days:
+                        prev_price = stock_df.iloc[-days]['CLOSE']
+                        return round(((current_price - prev_price) / prev_price) * 100, 2)
+                    return 0.0
+
+                trends = {
+                    "5d": get_trend(5),
+                    "15d": get_trend(15),
+                    "30d": get_trend(30),
+                    "90d": get_trend(90)
+                }
+
+            # Combine analysis columns with the new technical indicators
+            enriched_results.append({
+                "stock": sc_name,
+                "SC Code": row['SC Code'],
+                "num_MF_holding": row['num MF holding'],
+                "mf_Added": row['mf_Added'],
+                "MF_removed": row['MF_removed'],
+                "mf_increased_investment": row['mf_increased_investment'],
+                "mf_decreased_investment": row['mf_decreased_investment'],
+                "mf_no_change_investment": row['mf_no_change_investment'],
+                "rsi": rsi_val,
+                "trends": trends
+            })
+
+        # 4. Sort by highest activity or specific trend (e.g., Added + Increased)
+        enriched_results.sort(key=lambda x: (x['mf_Added'] + x['mf_increased_investment']), reverse=True)
+
+    finally:
+        conn.close()
+
+    # Save as PKL to be read by the Flask route
+    with open(mf_enriched_pkl_path, 'wb') as file:
+        pickle.dump(enriched_results, file)
+
+    print(f"Updated MF Enriched PKL: {mf_enriched_pkl_path}")
+
 
 def process_date(target_date):
     # Prune oldest day(s) before adding new data
@@ -522,6 +630,7 @@ def main():
     process_date(now)
     # As database is updated, run a computation to pull the list of stocks and rewrite a .pkl file everyday
     create_basket_data()
+    create_mf_holdings_data()
 
 
 if __name__ == "__main__":
