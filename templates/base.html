@@ -16,7 +16,8 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
-            --primary-color: #6366f1; /* Electric Indigo */
+            --primary-color: #6366f1;
+            /* Electric Indigo */
             --primary-hover: #4f46e5;
             --primary-glow: rgba(99, 102, 241, 0.5);
             --bg-color: #f3f4f6;
@@ -44,7 +45,14 @@
             --tr-bg: #0f172a;
         }
 
-        body, .card, header, table, th, td, input, select {
+        body,
+        .card,
+        header,
+        table,
+        th,
+        td,
+        input,
+        select {
             transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
         }
 
@@ -66,13 +74,20 @@
             transition: width 0.3s ease, opacity 0.3s ease;
             opacity: 0;
         }
+
         html {
-        scrollbar-color: #6b7280bf #f0f0f000;
+            scrollbar-color: #6b7280bf #f0f0f000;
         }
+
         /* Generic Skeleton Loader */
         @keyframes global-shimmer {
-            0% { background-position: -1000px 0; }
-            100% { background-position: 1000px 0; }
+            0% {
+                background-position: -1000px 0;
+            }
+
+            100% {
+                background-position: 1000px 0;
+            }
         }
 
         .global-shimmer {
@@ -87,8 +102,16 @@
             gap: 24px;
             width: 100%;
         }
-        .skeleton-header { height: 40px; width: 30%; border-radius: 6px; }
-        .skeleton-box { border-radius: 12px; }
+
+        .skeleton-header {
+            height: 40px;
+            width: 30%;
+            border-radius: 6px;
+        }
+
+        .skeleton-box {
+            border-radius: 12px;
+        }
 
         body {
             font-family: 'Inter', sans-serif;
@@ -227,9 +250,11 @@
             background-color: var(--input-bg);
             color: var(--text-main);
         }
+
         li {
             background-color: var(--li-bg);
         }
+
         input[type="text"]:focus,
         input[type="date"]:focus,
         input[type="password"]:focus,
@@ -435,10 +460,11 @@
                     </svg>
                     <span class="nav-text">Strategies</span>
                 </a>
-                <a href="{{ url_for('baskets') }}"
-                    class="nav-link {% if request.path == '/baskets' %}active{% endif %}" title="Baskets">
+                <a href="{{ url_for('baskets') }}" class="nav-link {% if request.path == '/baskets' %}active{% endif %}"
+                    title="Baskets">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
-                        class="nav-icon" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        class="nav-icon" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
                         <path d="m15 11-1 9"></path>
                         <path d="m19 11-4-7"></path>
                         <path d="M2 11h20"></path>
@@ -451,7 +477,8 @@
                 <a href="{{ url_for('mf_holdings') }}"
                     class="nav-link {% if request.path == '/mf_holdings' %}active{% endif %}" title="MF Holdings">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
-                        class="nav-icon" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        class="nav-icon" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
                         <rect width="16" height="10" x="2" y="6" rx="2"></rect>
                         <path d="M12 12h.01"></path>
                         <path d="M17 20h2a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-2"></path>
@@ -488,8 +515,8 @@
                     </svg>
                     <span class="nav-text">Watchlist</span>
                 </a>
-                <a href="{{ url_for('health') }}"
-                    class="nav-link {% if request.path == '/health' %}active{% endif %}" title="Portfolio Health">
+                <a href="{{ url_for('health') }}" class="nav-link {% if request.path == '/health' %}active{% endif %}"
+                    title="Portfolio Health">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
                         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
@@ -502,9 +529,13 @@
 
         {% if current_user.is_authenticated %}
         <div style="display: flex; align-items: center; gap: 16px;">
-            <button id="theme-toggle" class="btn" style="background: none; border: none; padding: 4px; cursor: pointer; color: var(--text-secondary); display: flex; align-items: center; justify-content: center;" title="Toggle Theme">
+            <button id="theme-toggle" class="btn"
+                style="background: none; border: none; padding: 4px; cursor: pointer; color: var(--text-secondary); display: flex; align-items: center; justify-content: center;"
+                title="Toggle Theme">
                 <!-- Sun Icon (Default shown in dark mode) -->
-                <svg id="theme-icon-sun" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none;">
+                <svg id="theme-icon-sun" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                    style="display: none;">
                     <circle cx="12" cy="12" r="5"></circle>
                     <line x1="12" y1="1" x2="12" y2="3"></line>
                     <line x1="12" y1="21" x2="12" y2="23"></line>
@@ -516,7 +547,9 @@
                     <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
                 </svg>
                 <!-- Moon Icon (Default shown in light mode) -->
-                <svg id="theme-icon-moon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: block;">
+                <svg id="theme-icon-moon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                    style="display: block;">
                     <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
                 </svg>
             </button>
@@ -629,18 +662,18 @@
                 const scripts = Array.from(element.querySelectorAll('script'));
                 scripts.forEach(oldScript => {
                     // Do not re-evaluate the flash prevention script
-                    if(oldScript.innerHTML && oldScript.innerHTML.includes("localStorage.getItem('theme')")) {
+                    if (oldScript.innerHTML && oldScript.innerHTML.includes("localStorage.getItem('theme')")) {
                         return;
                     }
                     const newScript = document.createElement('script');
                     Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
-                    
+
                     if (oldScript.src) {
                         newScript.src = oldScript.src;
                     } else {
                         newScript.textContent = oldScript.textContent;
                     }
-                    
+
                     oldScript.parentNode.replaceChild(newScript, oldScript);
                 });
             }
@@ -662,19 +695,19 @@
                         }
                         throw new Error('Network response was not ok');
                     }
-                    
+
                     const htmlString = await response.text();
                     progressBar.style.width = '70%';
 
                     const parser = new DOMParser();
                     const doc = parser.parseFromString(htmlString, 'text/html');
-                    
+
                     const newContent = doc.getElementById('main-container');
                     if (newContent) {
                         mainContainer.innerHTML = newContent.innerHTML;
                         executeScripts(mainContainer);
                         document.title = doc.title;
-                        
+
                         if (pushState) {
                             history.pushState({}, '', url);
                         }
@@ -725,7 +758,7 @@
 
             function updateThemeIcons(theme) {
                 if (!sunIcon || !moonIcon) return;
-                if(theme === 'dark') {
+                if (theme === 'dark') {
                     sunIcon.style.display = 'block';
                     moonIcon.style.display = 'none';
                 } else {
@@ -733,39 +766,39 @@
                     moonIcon.style.display = 'block';
                 }
             }
-            
+
             // Initialize icons based on already loaded theme
             updateThemeIcons(document.documentElement.getAttribute('data-theme'));
 
-            if(themeToggleBtn) {
+            if (themeToggleBtn) {
                 themeToggleBtn.addEventListener('click', () => {
                     const currentTheme = document.documentElement.getAttribute('data-theme');
                     const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-                    
+
                     document.documentElement.setAttribute('data-theme', newTheme);
                     localStorage.setItem('theme', newTheme);
                     updateThemeIcons(newTheme);
 
                     // Update all active Chart.js instances
-                    if(window.Chart && Chart.instances) {
-                        // Small delay to allow CSS variables to update
+                    if (window.Chart && Chart.instances) {
+                        // Small delay to allow CSS variables to update - 50ms delay
                         setTimeout(() => {
                             const textColor = getComputedStyle(document.documentElement).getPropertyValue('--text-main').trim();
                             const gridColor = getComputedStyle(document.documentElement).getPropertyValue('--border-color').trim();
                             const secTextColor = getComputedStyle(document.documentElement).getPropertyValue('--text-secondary').trim();
 
                             Object.values(Chart.instances).forEach(chart => {
-                                if(chart.options.plugins && chart.options.plugins.legend) {
+                                if (chart.options.plugins && chart.options.plugins.legend) {
                                     chart.options.plugins.legend.labels.color = secTextColor;
                                 }
-                                if(chart.options.plugins && chart.options.plugins.title) {
+                                if (chart.options.plugins && chart.options.plugins.title) {
                                     chart.options.plugins.title.color = secTextColor;
                                 }
-                                if(chart.options.scales && chart.options.scales.x) {
+                                if (chart.options.scales && chart.options.scales.x) {
                                     chart.options.scales.x.ticks.color = secTextColor;
                                     if (chart.options.scales.x.grid) chart.options.scales.x.grid.color = gridColor;
                                 }
-                                if(chart.options.scales && chart.options.scales.y) {
+                                if (chart.options.scales && chart.options.scales.y) {
                                     chart.options.scales.y.ticks.color = secTextColor;
                                     if (chart.options.scales.y.grid) chart.options.scales.y.grid.color = gridColor;
                                 }
