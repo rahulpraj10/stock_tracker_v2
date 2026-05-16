@@ -12,4 +12,5 @@ yfinance
 tinydb
 pytz
 flask_session
-pickle
+bs4
+Bharat-sm-data
