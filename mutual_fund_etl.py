@@ -174,5 +174,39 @@ directory = "./StockData"
 f_analysis_current_file = os.path.join(directory, "MF_holdings_analysis.pkl")
 analysis.to_pickle(f_analysis_current_file)
 
+# Also create the simple dictionary pkl file for easy reference
+def create_mf_lookup(df):
+    mf_details_lookup = {}
+
+    # Group by stock code to collect all MFs for that specific stock
+    grouped = df.groupby('SC Code')
+
+    for sc_code, group in grouped:
+        # Convert the group of funds for this stock into a list of dictionaries
+        funds_list = []
+        for _, row in group.iterrows():
+            funds_list.append({
+                "mf_name": row['fund'],
+                "aum_pct": row['latest'],  # Percentage of AUM invested
+                "rank": row['holding_rank'],  # Holding rank
+                "change3m": row['change3m']  # 3-month change percentage
+            })
+
+        # Store in the main lookup dictionary using the stock code as the key
+        mf_details_lookup[str(sc_code)] = funds_list
+
+    return mf_details_lookup
+
+
+# Execute the conversion
+full_holding_df1['holding_rank'] = full_holding_df1.groupby('fund')['latest'].rank(ascending=False)
+full_holding_df1['SC Code'] = full_holding_df1['SC Code'].fillna(0)
+full_holding_df1['SC Code'] = full_holding_df1['SC Code'].astype(int)
+mf_lookup_dict = create_mf_lookup(full_holding_df1)
+
+
+with open('./StockData/mf_stock_details.pkl', 'wb') as f:
+    pickle.dump(mf_lookup_dict, f)
+
 
 
