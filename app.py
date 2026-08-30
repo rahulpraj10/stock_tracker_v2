@@ -296,17 +296,17 @@ def logout():
 # Global Indices Map for the Charts
 INDICES_MAP = {
     "Nifty 50": "^NSEI",
-    "Nifty Auto": "^CNXAUTO",
-    "Nifty Metal": "^CNXMETAL",
+    "Nifty Auto": "AUTOBEES.NS",
+    "Nifty Metal": "METAL.NS",
     "Nifty Bank": "^NSEBANK",
     "Nifty IT": "^CNXIT",
     "Nifty Pharma": "^CNXPHARMA",
-    "Nifty FMCG": "^CNXFMCG",
-    "Nifty Realty": "^CNXREALTY",
+    "Nifty FMCG": "FMCGIETF.NS",
+    "Nifty Realty": "MOREALTY.NS",
     "Nifty Media": "^CNXMEDIA",
-    "Nifty Energy": "^CNXENERGY",
-    "Nifty PSU Bank": "^CNXPSUBANK",
-    "Nifty Infra": "^CNXINFRA",
+    "Nifty Energy": "ENERGY.NS",
+    "Nifty PSU Bank": "BANKPSU.NS",
+    "Nifty Infra": "INFRABEES.NS",
     "India VIX": "^INDIAVIX"
 }
 
@@ -1905,6 +1905,7 @@ def all_sectors_history():
 def _get_sector_history_data(ticker):
     stock = yf.Ticker(ticker)
     hist = stock.history(period="1y")
+    hist = hist.dropna()
     return hist
 
 
